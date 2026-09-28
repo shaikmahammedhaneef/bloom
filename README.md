@@ -14,7 +14,7 @@ A self-care app for routines, habits, mood and health. Built with Next.js 16 (Ap
 - **Mood** — a 5-point check-in with emotions, triggers and a note. Check in as often as you like; the calendar, trends and insights use each day's best mood. Also a journal with prompts, three good things, and a mood calendar with stats.
 - **Progress** — daily completion charts, mood trend, and mood-versus-habit insights. Points, 10 levels and 12 badges.
 - **Challenges** — 7-day and 21-day challenges.
-- **Health** — water, sleep (bedtime to wake time), steps and weight. Also a breathing timer (3 patterns), a Pomodoro focus timer and 4 guided workouts.
+- **Health** — water, sleep (bedtime to wake time), steps and weight, plus a Health stats page (7 days, 30 days, 90 days or a year) with averages, goal days, usual bedtime and wake-up, and charts for each. Also a breathing timer (3 patterns), a Pomodoro focus timer and 4 guided workouts.
 - **Profile** — 4 theme colors, dark mode, reminder settings, daily goals and CSV export.
 
 ## Run it locally
@@ -98,6 +98,7 @@ proxy.ts            sends signed-out visitors to /login
 | GET | /api/cron/reminders | Sends due push reminders; call every minute with the `CRON_SECRET` |
 | GET | /api/week?start=&today= | Week overview |
 | GET, POST | /api/mood?date= or ?month= | List or add mood check-ins (several per day) |
+| GET | /api/health/stats?to=&days= | Daily sleep, water, steps and weight for 7, 30, 90 or 365 days |
 | PATCH, DELETE | /api/mood/:id | Edit or delete a check-in |
 | GET, POST | /api/journal | Journal entries |
 | GET, POST | /api/challenges?today= | Challenge catalog, or join one |

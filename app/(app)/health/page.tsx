@@ -90,13 +90,18 @@ export default function HealthPage() {
 
   return (
     <main className="shell">
-      <Header title="Health" sub={fmtLong(date)} />
+      <Header title="Health" sub={fmtLong(date)} right={<Link href="/health/stats" className="btn sm soft-btn"><Icon name="chart" size={16} />Stats</Link>} />
       <div className="grid3">
         <Link href="/health/timer?mode=breathe" className="choice center tone-sage" style={{ border: "none", fontSize: 14 }}><Icon name="wind" size={24} />Breathe</Link>
         <Link href="/health/timer?mode=focus" className="choice center tone-lilac" style={{ border: "none", fontSize: 14 }}><Icon name="clock" size={24} />Focus</Link>
         <Link href="/health/workout" className="choice center tone-peach" style={{ border: "none", fontSize: 14 }}><Icon name="dumbbell" size={24} />Workout</Link>
       </div>
       {mindful > 0 && <div className="small muted">{mindful} minutes of breathing, focus and workouts today.</div>}
+      <Link href="/health/stats" className="soft" style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Icon name="chart" size={22} />
+        <span className="grow"><b>See all stats</b><br /><span className="small">Sleep, steps, water and weight over time</span></span>
+        <Icon name="chevR" size={16} />
+      </Link>
 
       <section className="card" aria-label="Water">
         <div className="between">
