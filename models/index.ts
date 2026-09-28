@@ -70,15 +70,36 @@ const TodoSchema = new Schema(
   {
     userId: { type: ObjectId, required: true },
     title: { type: String, required: true },
-    date: { type: String, required: true },
+    date: { type: String, required: true }, // the day, or the first day of a repeating to-do
     startTime: { type: String, default: "" },
     endTime: { type: String, default: "" },
-    done: { type: Boolean, default: false },
+    done: { type: Boolean, default: false }, // one-off to-dos only
     reminder: { type: Boolean, default: false },
+    repeat: { type: String, enum: ["none", "daily", "days"], default: "none" },
+    days: { type: [Number], default: [] }, // 0 = Sunday … 6 = Saturday, for repeat "days"
+    doneDates: { type: [String], default: [] }, // days a repeating to-do was done
+    skipDates: { type: [String], default: [] }, // days removed from a repeating to-do
   },
   opts
 );
 TodoSchema.index({ userId: 1, date: 1 });
+
+// Browsers subscribed to Web Push, so reminders arrive while Bloom is closed.
+const PushSubSchema = new Schema(
+  {
+    userId: { type: ObjectId, required: true, index: true },
+    endpoint: { type: String, required: true, unique: true },
+    keys: { p256dh: { type: String, required: true }, auth: { type: String, required: true } },
+    tz: { type: String, default: "UTC" },
+  },
+  opts
+);
+
+// One row per reminder already sent, so each goes out once. Expires after 3 days.
+const ReminderSentSchema = new Schema({
+  key: { type: String, required: true, unique: true },
+  at: { type: Date, default: Date.now, expires: 60 * 60 * 24 * 3 },
+});
 
 const MoodSchema = new Schema(
   {
@@ -145,6 +166,8 @@ export const User = make("User", UserSchema);
 export const Habit = make("Habit", HabitSchema);
 export const HabitLog = make("HabitLog", HabitLogSchema);
 export const Todo = make("Todo", TodoSchema);
+export const PushSub = make("PushSub", PushSubSchema);
+export const ReminderSent = make("ReminderSent", ReminderSentSchema);
 export const Mood = make("Mood", MoodSchema);
 export const Journal = make("Journal", JournalSchema);
 export const UserChallenge = make("UserChallenge", UserChallengeSchema);

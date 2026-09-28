@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     } else if (kind === "journal") {
       csv = toCsv(["date", "prompt", "text", "gratitude"], (await Journal.find({ userId: uid }).sort({ date: 1 }).lean()) as unknown as Row[]);
     } else if (kind === "todos") {
-      csv = toCsv(["date", "startTime", "endTime", "title", "done"], (await Todo.find({ userId: uid }).sort({ date: 1 }).lean()) as unknown as Row[]);
+      csv = toCsv(["date", "startTime", "endTime", "title", "done", "repeat"], (await Todo.find({ userId: uid }).sort({ date: 1 }).lean()) as unknown as Row[]);
     } else if (kind === "health") {
       csv = toCsv(["date", "water", "steps", "weight", "sleepStart", "sleepEnd"], (await Health.find({ userId: uid }).sort({ date: 1 }).lean()) as unknown as Row[]);
     } else if (kind === "sessions") {

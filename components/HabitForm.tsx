@@ -2,16 +2,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "./Icon";
-import { Seg, Stepper, TimePair, Toggle } from "./ui";
+import { DayPicker, Seg, Stepper, TimePair, Toggle } from "./ui";
 import { api } from "@/lib/client";
 import { CATEGORIES, ICONS, TONES } from "@/lib/catalog";
 import { duration, fmtDur, fmtTime, partOfDay, toKey } from "@/lib/dates";
 import type { Habit, Repeat } from "@/lib/types";
-
-const DAY_BTNS = [
-  { d: 1, l: "M", n: "Monday" }, { d: 2, l: "T", n: "Tuesday" }, { d: 3, l: "W", n: "Wednesday" }, { d: 4, l: "T", n: "Thursday" },
-  { d: 5, l: "F", n: "Friday" }, { d: 6, l: "S", n: "Saturday" }, { d: 0, l: "S", n: "Sunday" },
-];
 
 export default function HabitForm({ initial }: { initial?: Habit }) {
   const router = useRouter();
@@ -91,19 +86,7 @@ export default function HabitForm({ initial }: { initial?: Habit }) {
       <div className="field">
         <span className="flabel">Repeat</span>
         <Seg label="Repeat" value={repeat} onChange={setRepeat} options={[{ value: "daily", label: "Every day" }, { value: "days", label: "Some days" }, { value: "weekly", label: "Times a week" }]} />
-        {repeat === "days" && (
-          <div style={{ display: "flex", justifyContent: "space-between" }} role="group" aria-label="Days">
-            {DAY_BTNS.map((b) => {
-              const on = days.includes(b.d);
-              return (
-                <button key={b.d} type="button" aria-label={b.n} aria-pressed={on} onClick={() => setDays(on ? days.filter((x) => x !== b.d) : [...days, b.d])}
-                  style={{ width: 42, height: 42, borderRadius: "50%", border: `1.5px solid ${on ? "var(--acc)" : "var(--line)"}`, background: on ? "var(--acc)" : "var(--surf)", color: on ? "var(--on-acc)" : "var(--ink)", fontWeight: 600 }}>
-                  {b.l}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {repeat === "days" && <DayPicker days={days} onChange={setDays} />}
         {repeat === "weekly" && (
           <div className="card" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <span>Times per week</span>

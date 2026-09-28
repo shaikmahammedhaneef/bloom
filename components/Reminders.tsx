@@ -1,14 +1,16 @@
 "use client";
 // In-app reminders. They fire while Bloom is open, in a tab or as an installed
 // app (as a system notification if you've allowed it, otherwise as a banner).
+// When Bloom is closed, the server sends the same reminders by Web Push.
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/client";
-import { fmtTime, nowTime, toKey } from "@/lib/dates";
+import { nowTime, toKey } from "@/lib/dates";
 import { showNotification } from "@/lib/notify";
+import { habitReminder, moodReminder, STREAK_TIME, streakReminder, todoReminder, type ReminderMsg } from "@/lib/reminderText";
 import type { Me, TodayData } from "@/lib/types";
 
-async function notify(title: string, body: string, show: (m: string) => void, url?: string) {
-  if (!(await showNotification(title, body, url))) show(`${title} — ${body}`);
+async function notify(m: ReminderMsg, show: (m: string) => void) {
+  if (!(await showNotification(m.title, m.body, m.url))) show(`${m.title} — ${m.body}`);
 }
 
 function once(key: string): boolean {
@@ -46,24 +48,18 @@ export default function Reminders({ me }: { me: Me }) {
       if (!d) return;
       if (r.routine) {
         for (const h of d.habits) {
-          if (h.reminder && !h.done && h.startTime === now && once(`bloom-n:${date}:h:${h._id}`)) {
-            notify(h.name, h.endTime ? `Now until ${fmtTime(h.endTime)}` : "It's time", show, "/today");
-          }
+          if (h.reminder && !h.done && h.startTime === now && once(`bloom-n:${date}:h:${h._id}`)) notify(habitReminder(h), show);
         }
         for (const t of d.todos) {
-          if (t.reminder && !t.done && t.startTime === now && once(`bloom-n:${date}:t:${t._id}`)) {
-            notify(t.title, t.endTime ? `Now until ${fmtTime(t.endTime)}` : "It's time", show, "/schedule");
-          }
+          if (t.reminder && !t.done && t.startTime === now && once(`bloom-n:${date}:t:${t._id}`)) notify(todoReminder(t), show);
         }
       }
       if (r.mood && now === r.moodTime && !d.mood && once(`bloom-n:${date}:mood`)) {
-        notify("How are you feeling?", "Take a moment to check in.", show, "/mood");
+        notify(moodReminder(), show);
       }
-      if (r.streak && now === "20:00") {
+      if (r.streak && now === STREAK_TIME) {
         const atRisk = d.habits.filter((h) => !h.done && h.streak >= 3 && h.streakUnit === "day");
-        if (atRisk.length && once(`bloom-n:${date}:streak`)) {
-          notify("Keep your streak going", `${atRisk[0].name} — ${atRisk[0].streak} days so far`, show, "/habits");
-        }
+        if (atRisk.length && once(`bloom-n:${date}:streak`)) notify(streakReminder(atRisk[0]), show);
       }
     };
     tick();

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
 import HabitRow from "@/components/HabitRow";
-import TodoRow from "@/components/TodoRow";
+import TodoList from "@/components/TodoList";
 import { ErrorBox, Face, Loading, Ring, Toast } from "@/components/ui";
 import { useMe } from "@/components/AppShell";
 import { api, useApi, useToast } from "@/lib/client";
@@ -48,16 +48,6 @@ export default function TodayPage() {
     } catch (e) {
       setData(before);
       toast.show((e as Error).message);
-    }
-  }
-
-  async function toggleTodo(id: string, doneNow: boolean) {
-    setData((d) => d && { ...d, todos: d.todos.map((t) => (t._id === id ? { ...t, done: doneNow } : t)) });
-    try {
-      await api(`/api/todos/${id}`, { method: "PATCH", body: { done: doneNow } });
-    } catch (e) {
-      toast.show((e as Error).message);
-      reload();
     }
   }
 
@@ -142,9 +132,7 @@ export default function TodayPage() {
           <Link href="/schedule" style={{ fontWeight: 600, fontSize: 14 }}>Add or edit</Link>
         </div>
         {data.todos.length ? (
-          <div className="card list">
-            {data.todos.map((t) => <TodoRow key={t._id} t={t} onToggle={() => toggleTodo(t._id, !t.done)} />)}
-          </div>
+          <TodoList todos={data.todos} setTodos={(fn) => setData((d) => d && { ...d, todos: fn(d.todos) })} reload={reload} toast={toast.show} />
         ) : (
           <div className="card empty small">Nothing on your to-do list today.</div>
         )}

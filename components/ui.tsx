@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Icon from "./Icon";
 import { MOOD_NAMES } from "@/lib/catalog";
@@ -174,6 +174,135 @@ export function TimePair({ from, to, onFrom, onTo, idPrefix }: { from: string; t
       <div className="field">
         <label htmlFor={`${idPrefix}-to`}>To</label>
         <TimeInput id={`${idPrefix}-to`} label="To" value={to} onChange={onTo} />
+      </div>
+    </div>
+  );
+}
+
+const DAY_BTNS = [
+  { d: 1, l: "M", n: "Monday" }, { d: 2, l: "T", n: "Tuesday" }, { d: 3, l: "W", n: "Wednesday" }, { d: 4, l: "T", n: "Thursday" },
+  { d: 5, l: "F", n: "Friday" }, { d: 6, l: "S", n: "Saturday" }, { d: 0, l: "S", n: "Sunday" },
+];
+
+export function DayPicker({ days, onChange }: { days: number[]; onChange: (d: number[]) => void }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between" }} role="group" aria-label="Days">
+      {DAY_BTNS.map((b) => {
+        const on = days.includes(b.d);
+        return (
+          <button key={b.d} type="button" aria-label={b.n} aria-pressed={on} onClick={() => onChange(on ? days.filter((x) => x !== b.d) : [...days, b.d])}
+            style={{ width: 42, height: 42, borderRadius: "50%", border: `1.5px solid ${on ? "var(--acc)" : "var(--line)"}`, background: on ? "var(--acc)" : "var(--surf)", color: on ? "var(--on-acc)" : "var(--ink)", fontWeight: 600 }}>
+            {b.l}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A bottom sheet over the page. Closes on Escape or a tap outside. */
+export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
+    ref.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      prev?.focus?.();
+    };
+  }, [onClose]);
+  return (
+    <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref}>
+        <div className="between">
+          <h2 className="sheet-title">{title}</h2>
+          <button type="button" className="icon-btn sm" aria-label="Close" onClick={onClose}><Icon name="x" size={18} /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+const SWIPE_OPEN = "bloom-swipe-open";
+
+/** A list row that slides left to show action buttons, like in Mail. */
+export function SwipeRow({ children, actions, label }: { children: React.ReactNode; actions: { label: string; icon: string; tone?: "danger"; onClick: () => void }[]; label: string }) {
+  const width = actions.length * 76;
+  const [x, setX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const id = useRef(Math.random().toString(36));
+  const start = useRef<{ x: number; y: number; base: number; horizontal: boolean | null } | null>(null);
+  const dragged = useRef(false);
+
+  // Only one row stays open at a time.
+  useEffect(() => {
+    const close = (e: Event) => (e as CustomEvent).detail !== id.current && setX(0);
+    window.addEventListener(SWIPE_OPEN, close);
+    return () => window.removeEventListener(SWIPE_OPEN, close);
+  }, []);
+  const open = () => {
+    setX(-width);
+    window.dispatchEvent(new CustomEvent(SWIPE_OPEN, { detail: id.current }));
+  };
+
+  function down(e: React.PointerEvent) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    dragged.current = false;
+    start.current = { x: e.clientX, y: e.clientY, base: x, horizontal: null };
+  }
+  function move(e: React.PointerEvent) {
+    const s = start.current;
+    if (!s) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    if (s.horizontal === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      s.horizontal = Math.abs(dx) > Math.abs(dy);
+      if (!s.horizontal) return (start.current = null);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      dragged.current = true;
+      setDragging(true);
+    }
+    setX(Math.max(-width - 24, Math.min(0, s.base + dx)));
+  }
+  function up() {
+    const s = start.current;
+    start.current = null;
+    if (!s?.horizontal) return;
+    setDragging(false);
+    if (x < -width / 2) open();
+    else setX(0);
+  }
+
+  return (
+    <div className="swipe">
+      <div className="swipe-actions" style={{ width, visibility: x === 0 && !dragging ? "hidden" : "visible" }} aria-label={`Actions for ${label}`} role="group">
+        {actions.map((a) => (
+          <button key={a.label} type="button" className={`swipe-btn ${a.tone ?? ""}`} tabIndex={x === 0 ? -1 : 0}
+            onClick={() => { setX(0); a.onClick(); }}>
+            <Icon name={a.icon} size={20} />{a.label}
+          </button>
+        ))}
+      </div>
+      <div className="swipe-content" style={{ transform: `translateX(${x}px)`, transition: dragging ? "none" : undefined }}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        onClickCapture={(e) => {
+          // A tap on an open row closes it, and the click that ends a drag does nothing.
+          if (dragged.current || x !== 0) {
+            e.stopPropagation();
+            e.preventDefault();
+            if (!dragged.current) setX(0);
+          }
+          dragged.current = false;
+        }}>
+        {children}
+        <button type="button" className="icon-btn sm swipe-more" aria-label={`More actions for ${label}`} aria-expanded={x !== 0}
+          onClick={(e) => { e.stopPropagation(); if (x === 0) open(); else setX(0); }}>
+          <Icon name="more" size={18} />
+        </button>
       </div>
     </div>
   );

@@ -35,7 +35,11 @@ export interface Todo {
   endTime: string;
   done: boolean;
   reminder: boolean;
+  repeat: TodoRepeat;
+  days: number[];
 }
+
+export type TodoRepeat = "none" | "daily" | "days";
 
 export interface Mood {
   _id?: string;

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Icon from "./Icon";
 import Reminders from "./Reminders";
 import { api } from "@/lib/client";
+import { syncPush } from "@/lib/push";
 import type { Me, Settings } from "@/lib/types";
 
 type Ctx = { me: Me | null; refresh: () => Promise<void>; updateSettings: (s: Partial<Settings>) => Promise<void>; setMe: (m: Me) => void };
@@ -50,6 +51,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Keeps this browser's push subscription (and time zone) up to date.
+  const signedIn = Boolean(me);
+  useEffect(() => {
+    if (signedIn) syncPush().catch(() => {});
+  }, [signedIn]);
 
   const updateSettings = useCallback(async (s: Partial<Settings>) => {
     const m = await api<Me>("/api/me", { method: "PATCH", body: { settings: s } });

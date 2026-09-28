@@ -2,9 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Icon from "@/components/Icon";
 import TodoForm from "@/components/TodoForm";
-import TodoRow from "@/components/TodoRow";
+import TodoList from "@/components/TodoList";
 import { ErrorBox, Header, Loading, SegLinks, Toast } from "@/components/ui";
-import { api, useApi, useToast } from "@/lib/client";
+import { useApi, useToast } from "@/lib/client";
 import { addDays, fmtHour, fmtLong, nowTime, timeRange, toKey, toMin } from "@/lib/dates";
 import type { TodayData } from "@/lib/types";
 
@@ -72,24 +72,6 @@ export default function SchedulePage() {
     return { blocks: layout(bl), untimed: un, startHour: Math.floor(minS / 60), endHour: Math.min(24, Math.ceil(maxE / 60)) };
   }, [data]);
 
-  async function toggleTodo(id: string, done: boolean) {
-    setData((d) => d && { ...d, todos: d.todos.map((t) => (t._id === id ? { ...t, done } : t)) });
-    try {
-      await api(`/api/todos/${id}`, { method: "PATCH", body: { done } });
-    } catch (e) {
-      toast.show((e as Error).message);
-      reload();
-    }
-  }
-  async function del(id: string) {
-    try {
-      await api(`/api/todos/${id}`, { method: "DELETE" });
-      toast.show("To-do deleted");
-      reload();
-    } catch (e) {
-      toast.show((e as Error).message);
-    }
-  }
 
   const hours = [];
   for (let h = startHour; h <= endHour; h++) hours.push(h);
@@ -151,9 +133,7 @@ export default function SchedulePage() {
               <span className="muted small">{data?.todos.filter((t) => t.done).length ?? 0} of {data?.todos.length ?? 0} done</span>
             </div>
             {data && data.todos.length > 0 && (
-              <div className="card list">
-                {data.todos.map((t) => <TodoRow key={t._id} t={t} onToggle={() => toggleTodo(t._id, !t.done)} onDelete={() => del(t._id)} />)}
-              </div>
+              <TodoList todos={data.todos} setTodos={(fn) => setData((d) => d && { ...d, todos: fn(d.todos) })} reload={reload} toast={toast.show} />
             )}
             <TodoForm date={date} onAdded={() => { toast.show("To-do added"); reload(); }} />
           </section>

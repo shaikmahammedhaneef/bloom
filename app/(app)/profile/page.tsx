@@ -7,6 +7,7 @@ import { api, useToast } from "@/lib/client";
 import { ACCENTS } from "@/lib/catalog";
 import { notifyPermission, requestNotifyPermission, showNotification, type NotifyPermission } from "@/lib/notify";
 import { promptInstall, useInstallState } from "@/lib/pwa";
+import { stopPush, syncPush, type PushState } from "@/lib/push";
 import type { Me } from "@/lib/types";
 
 const EXPORTS = [
@@ -24,6 +25,7 @@ export default function ProfilePage() {
   const [roleModel, setRoleModel] = useState("");
   const [perm, setPerm] = useState<NotifyPermission>("default");
   const install = useInstallState();
+  const [push, setPush] = useState<PushState | "checking">("checking");
   const toast = useToast();
 
   useEffect(() => {
@@ -34,6 +36,7 @@ export default function ProfilePage() {
   }, [me?._id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     setPerm(notifyPermission());
+    syncPush().then(setPush, () => setPush("off"));
   }, []);
 
   if (!me) return <main className="shell"><Loading /></main>;
@@ -58,7 +61,10 @@ export default function ProfilePage() {
   async function askPermission() {
     const p = await requestNotifyPermission();
     setPerm(p);
-    if (p === "granted") showNotification("Notifications are on", "Bloom will remind you about your routines here.", "/profile");
+    if (p === "granted") {
+      showNotification("Notifications are on", "Bloom will remind you about your routines here.", "/profile");
+      syncPush().then(setPush, () => setPush("off"));
+    }
     else toast.show("Notifications are blocked. You can allow them in your browser's site settings.");
   }
   async function testNotification() {
@@ -68,6 +74,7 @@ export default function ProfilePage() {
     if (await promptInstall()) toast.show("Bloom is installed");
   }
   async function logout() {
+    await stopPush().catch(() => {});
     await api("/api/auth/logout", { method: "POST" }).catch(() => {});
     window.location.href = "/login";
   }
@@ -150,7 +157,13 @@ export default function ProfilePage() {
         {perm === "granted" && (
           <button type="button" className="btn sm" style={{ alignSelf: "flex-start" }} onClick={testNotification}><Icon name="bell" size={16} />Send a test notification</button>
         )}
-        <span className="muted small">Reminders work while Bloom is open, in a browser tab or as an installed app.</span>
+        <span className="muted small">
+          {push === "on"
+            ? "Reminders reach this device even when Bloom is closed."
+            : push === "not-configured"
+              ? "Reminders work while Bloom is open. Reminders while it's closed need push set up on the server (see the README)."
+              : "Reminders work while Bloom is open, in a browser tab or as an installed app."}
+        </span>
       </section>
 
       <section className="stack" aria-label="Install app">

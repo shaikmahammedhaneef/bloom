@@ -1,5 +1,9 @@
+import { Todo } from "@/models";
 import { HttpError, str } from "./server";
-import { isKey, isTime } from "./dates";
+import { addDays, dow, isKey, isTime } from "./dates";
+import type { Todo as TodoItem, TodoRepeat } from "./types";
+
+const REPEATS: TodoRepeat[] = ["none", "daily", "days"];
 
 export function parseTodo(b: Record<string, unknown>, partial = false) {
   const out: Record<string, unknown> = {};
@@ -23,6 +27,73 @@ export function parseTodo(b: Record<string, unknown>, partial = false) {
   }
   if ("done" in b) out.done = Boolean(b.done);
   if ("reminder" in b) out.reminder = Boolean(b.reminder);
+  if ("repeat" in b) {
+    const r = b.repeat as TodoRepeat;
+    if (!REPEATS.includes(r)) throw new HttpError(400, "Repeat must be none, daily or days.");
+    out.repeat = r;
+    const days = Array.isArray(b.days) ? [...new Set(b.days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))] : [];
+    if (r === "days" && !days.length) throw new HttpError(400, "Pick at least one day.");
+    out.days = r === "days" ? days.sort() : [];
+  }
   return out;
 }
 
+export type TodoDoc = {
+  _id: unknown;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  done: boolean;
+  reminder: boolean;
+  repeat?: TodoRepeat;
+  days?: number[];
+  doneDates?: string[];
+  skipDates?: string[];
+};
+
+export const repeats = (t: { repeat?: string }) => t.repeat === "daily" || t.repeat === "days";
+
+/** Whether a to-do shows up on a given day. */
+export function occursOn(t: TodoDoc, date: string): boolean {
+  if (!repeats(t)) return t.date === date;
+  if (date < t.date || t.skipDates?.includes(date)) return false;
+  return t.repeat === "daily" || (t.days ?? []).includes(dow(date));
+}
+
+/** The to-do as it looks on one day. Repeating to-dos keep their id; `date` is that day. */
+export function occurrence(t: TodoDoc, date: string): TodoItem {
+  return {
+    _id: String(t._id),
+    title: t.title,
+    date,
+    startTime: t.startTime ?? "",
+    endTime: t.endTime ?? "",
+    reminder: Boolean(t.reminder),
+    repeat: repeats(t) ? (t.repeat as TodoRepeat) : "none",
+    days: t.days ?? [],
+    done: repeats(t) ? Boolean(t.doneDates?.includes(date)) : Boolean(t.done),
+  };
+}
+
+const byStart = (a: TodoItem, b: TodoItem) =>
+  a.date.localeCompare(b.date) || (a.startTime || "99").localeCompare(b.startTime || "99") || a.title.localeCompare(b.title);
+
+/** All to-dos from `from` to `to` (inclusive), with repeating ones expanded day by day. */
+export async function loadTodos(uid: string, from: string, to: string, extra: Record<string, unknown> = {}): Promise<TodoItem[]> {
+  const docs = (await Todo.find({
+    userId: uid,
+    ...extra,
+    $or: [
+      { repeat: { $in: ["daily", "days"] }, date: { $lte: to } },
+      { repeat: { $nin: ["daily", "days"] }, date: { $gte: from, $lte: to } },
+    ],
+  })
+    .sort({ createdAt: 1 })
+    .lean()) as unknown as TodoDoc[];
+  const out: TodoItem[] = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) {
+    for (const t of docs) if (occursOn(t, d)) out.push(occurrence(t, d));
+  }
+  return out.sort(byStart);
+}

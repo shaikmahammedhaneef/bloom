@@ -47,12 +47,25 @@ Open http://localhost:3000 and create an account.
 
 For a production build: `npm run build && npm start`.
 
+## Reminders while Bloom is closed (Web Push)
+
+This is optional. Without it, reminders still work whenever Bloom is open.
+
+1. Generate keys: `npx web-push generate-vapid-keys`. Put them in `.env.local` as `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`, and set `VAPID_SUBJECT` to `mailto:` plus your email.
+2. Something must check for due reminders every minute. Choose one:
+   - **Long-running server** (`npm start` on a VPS, Render, Railway and so on): set `REMINDER_WORKER=1`. Bloom checks every minute by itself.
+   - **Serverless hosting** (Vercel and similar): set `CRON_SECRET` to a long random string. Then have a cron service (for example cron-job.org, which is free) call `https://your-site/api/cron/reminders?secret=YOUR_CRON_SECRET` every minute. Vercel's own cron can't run every minute on the free plan.
+3. Restart Bloom. In Profile, allow notifications. The Reminders section then says "Reminders reach this device even when Bloom is closed."
+
+Each browser that allows notifications gets its own push subscription, which is removed on sign-out. Reminders use that device's time zone. Push needs HTTPS (or `localhost`). On iPhone, push only works after adding Bloom to the Home Screen (iOS 16.4 or later).
+
 ## Notes
 
 - **Install as an app** — Bloom is a Progressive Web App. In Chrome or Edge, use Profile → App → Install app (or the install icon in the address bar). On Android, Chrome offers "Install app" from its menu. On iPhone, use Safari's Share → Add to Home Screen. Installing needs HTTPS (or `localhost`).
-- **Reminders** run in the browser. They fire while Bloom is open, in a tab or as an installed app, and pop up as system notifications (through the service worker in `public/sw.js`) once you allow them in Profile. Otherwise they appear as a banner in the app. Reminders when the app is fully closed would need Web Push (a push server with VAPID keys and a scheduled job). That can be added later.
+- **Reminders** fire while Bloom is open, in a tab or as an installed app, and pop up as system notifications (through the service worker in `public/sw.js`) once you allow them in Profile. Otherwise they appear as a banner in the app. With push set up (below), they also arrive while Bloom is closed.
+- **To-dos** can repeat every day or on chosen weekdays. Swipe a to-do left (or tap ⋯) to edit or delete it. For a repeating to-do, you choose "Only this day" or "All scheduled".
 - **Dates** are the user's local calendar days, sent from the browser as `YYYY-MM-DD`. Times are `HH:mm`.
-- Collections are created on first use: `users`, `habits`, `habitlogs`, `todos`, `moods`, `journals`, `userchallenges`, `healths` and `sessions`.
+- Collections are created on first use: `users`, `habits`, `habitlogs`, `todos`, `moods`, `journals`, `userchallenges`, `healths`, `sessions`, `pushsubs` and `remindersents`.
 
 ## Project layout
 
@@ -80,7 +93,9 @@ proxy.ts            sends signed-out visitors to /login
 | POST | /api/habits/:id/log | Set `{date, count}` or `{date, delta}` |
 | GET | /api/today?date= | Habits due that day, to-dos, mood, points |
 | GET, POST | /api/todos?from=&to= | List or create to-dos (with start and end times) |
-| PATCH, DELETE | /api/todos/:id | Edit or delete a to-do |
+| PATCH, DELETE | /api/todos/:id | Edit or delete a to-do. For a repeating one, pass `on` (the day) and `scope` (`one` or `all`) |
+| GET, POST, DELETE | /api/push | Push key, and save or remove this browser's push subscription |
+| GET | /api/cron/reminders | Sends due push reminders; call every minute with the `CRON_SECRET` |
 | GET | /api/week?start=&today= | Week overview |
 | GET, POST | /api/mood?date= or ?month= | Mood check-ins |
 | GET, POST | /api/journal | Journal entries |

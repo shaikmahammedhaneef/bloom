@@ -1,23 +1,25 @@
 "use client";
-import Icon from "./Icon";
 import { Check } from "./ui";
 import { timeRange } from "@/lib/dates";
 import type { Todo } from "@/lib/types";
 
-export default function TodoRow({ t, onToggle, onDelete }: { t: Todo; onToggle: () => void; onDelete?: () => void }) {
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function repeatLabel(t: Todo) {
+  if (t.repeat === "daily") return "Every day";
+  if (t.repeat === "days") return [1, 2, 3, 4, 5, 6, 0].filter((d) => t.days.includes(d)).map((d) => DAY_NAMES[d]).join(", ");
+  return "";
+}
+
+export default function TodoRow({ t, onToggle }: { t: Todo; onToggle: () => void }) {
+  const meta = [t.startTime ? timeRange(t.startTime, t.endTime) : "No set time", repeatLabel(t), t.reminder && t.startTime ? "Reminder on" : ""];
   return (
     <div className="row">
       <Check done={t.done} label={t.title} onClick={onToggle} />
       <div className="grow">
         <div className={`row-title ${t.done ? "done-text" : ""}`}>{t.title}</div>
-        <div className="row-meta">
-          {t.startTime ? timeRange(t.startTime, t.endTime) : "No set time"}
-          {t.reminder && t.startTime ? "  ·  Reminder on" : ""}
-        </div>
+        <div className="row-meta">{meta.filter(Boolean).join("  ·  ")}</div>
       </div>
-      {onDelete && (
-        <button type="button" className="icon-btn sm" aria-label={`Delete ${t.title}`} onClick={onDelete}><Icon name="trash" size={18} /></button>
-      )}
     </div>
   );
 }

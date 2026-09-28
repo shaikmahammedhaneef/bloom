@@ -1,5 +1,6 @@
-// Bloom service worker. It makes the app installable and shows reminders as
-// system notifications. Clicking a notification focuses Bloom (or opens it).
+// Bloom service worker. It makes the app installable, shows reminders as
+// system notifications, and receives Web Push reminders while Bloom is closed.
+// Clicking a notification focuses Bloom (or opens it).
 // Pages and API calls always go to the network, so data is never stale.
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -18,6 +19,25 @@ self.addEventListener("fetch", (event) => {
           { headers: { "Content-Type": "text/html; charset=utf-8" } },
         ),
     ),
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+  const title = data.title || "Bloom";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      tag: data.tag || title,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: data.url || "/today" },
+    }),
   );
 });
 

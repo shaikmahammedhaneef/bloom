@@ -1,9 +1,9 @@
 import type { NextRequest } from "next/server";
-import { Todo } from "@/models";
 import { HttpError, ok, withUser } from "@/lib/server";
 import { addDays, isKey } from "@/lib/dates";
 import { byTime, loadHabits } from "@/lib/habitsServer";
 import { doneOn, isScheduled } from "@/lib/habitLogic";
+import { loadTodos } from "@/lib/todos";
 
 export async function GET(req: NextRequest) {
   return withUser(async (uid) => {
@@ -12,9 +12,7 @@ export async function GET(req: NextRequest) {
     if (!isKey(start) || !isKey(today)) throw new HttpError(400, "Add ?start=YYYY-MM-DD&today=YYYY-MM-DD");
     const end = addDays(start, 6);
     const { habits, counts } = await loadHabits(uid, start, end);
-    const todos = (await Todo.find({ userId: uid, date: { $gte: start, $lte: end } }).sort({ startTime: 1 }).lean()) as unknown as {
-      date: string;
-    }[];
+    const todos = await loadTodos(uid, start, end);
     const days = [];
     for (let i = 0; i < 7; i++) {
       const date = addDays(start, i);
