@@ -4,12 +4,14 @@ import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
 import HabitRow from "@/components/HabitRow";
-import TodoList from "@/components/TodoList";
+import { useTodoActions } from "@/components/TodoList";
 import { ErrorBox, Face, Loading, Ring, Sheet, SwipeRow, Toast } from "@/components/ui";
 import { useMe } from "@/components/AppShell";
 import { api, useApi, useToast } from "@/lib/client";
 import { fmtLong, greeting, partOfDay, toKey, type Part } from "@/lib/dates";
-import type { HabitToday, TodayData } from "@/lib/types";
+import type { HabitToday, TodayData, Todo } from "@/lib/types";
+
+type Item = { kind: "habit"; h: HabitToday; start: string } | { kind: "todo"; t: Todo; start: string };
 
 const PARTS: { key: Part; label: string; icon: string }[] = [
   { key: "morning", label: "Morning", icon: "sun" },
@@ -27,11 +29,15 @@ export default function TodayPage() {
   const [deleting, setDeleting] = useState<HabitToday | null>(null);
   const closeDelete = useCallback(() => setDeleting(null), []);
 
+  // Habits and to-dos share one timeline: grouped by part of day, sorted by start time.
   const groups = useMemo(() => {
-    const g: Record<Part, HabitToday[]> = { morning: [], afternoon: [], evening: [], anytime: [] };
-    data?.habits.forEach((h) => g[partOfDay(h.startTime)].push(h));
+    const g: Record<Part, Item[]> = { morning: [], afternoon: [], evening: [], anytime: [] };
+    data?.habits.forEach((h) => g[partOfDay(h.startTime)].push({ kind: "habit", h, start: h.startTime }));
+    data?.todos.forEach((t) => g[partOfDay(t.startTime)].push({ kind: "todo", t, start: t.startTime }));
+    for (const k of Object.keys(g) as Part[]) g[k].sort((a, b) => a.start.localeCompare(b.start) || (a.kind === b.kind ? 0 : a.kind === "habit" ? -1 : 1));
     return g;
   }, [data]);
+  const todoActions = useTodoActions({ setTodos: (fn) => setData((d) => d && { ...d, todos: fn(d.todos) }), reload, toast: toast.show });
 
   if (loading && !data) return <main className="shell"><Loading /></main>;
   if (error && !data) return <main className="shell"><ErrorBox msg={error} retry={reload} /></main>;
@@ -136,13 +142,13 @@ export default function TodayPage() {
               <span style={{ fontWeight: 600, color: "var(--ink)" }}>{p.label}</span>
             </div>
             <div className="card list">
-              {groups[p.key].map((h) => (
-                <SwipeRow key={h._id} label={h.name} actions={[
-                  { label: "View", icon: "chart", onClick: () => router.push(`/habits/${h._id}`) },
-                  { label: "Edit", icon: "pen", onClick: () => router.push(`/habits/${h._id}/edit`) },
-                  { label: "Delete", icon: "trash", tone: "danger", onClick: () => setDeleting(h) },
+              {groups[p.key].map((it) => it.kind === "todo" ? todoActions.row(it.t) : (
+                <SwipeRow key={it.h._id} label={it.h.name} actions={[
+                  { label: "View", icon: "chart", onClick: () => router.push(`/habits/${it.h._id}`) },
+                  { label: "Edit", icon: "pen", onClick: () => router.push(`/habits/${it.h._id}/edit`) },
+                  { label: "Delete", icon: "trash", tone: "danger", onClick: () => setDeleting(it.h) },
                 ]}>
-                  <HabitRow h={h} onSet={(c) => setCount(h, c)} />
+                  <HabitRow h={it.h} onSet={(c) => setCount(it.h, c)} />
                 </SwipeRow>
               ))}
             </div>
@@ -150,17 +156,8 @@ export default function TodayPage() {
         ) : null
       )}
 
-      <section className="stack" style={{ gap: 6 }} aria-label="To-dos">
-        <div className="between">
-          <span style={{ fontWeight: 600 }}>To-dos</span>
-          <Link href="/schedule" style={{ fontWeight: 600, fontSize: 14 }}>Add or edit</Link>
-        </div>
-        {data.todos.length ? (
-          <TodoList todos={data.todos} setTodos={(fn) => setData((d) => d && { ...d, todos: fn(d.todos) })} reload={reload} toast={toast.show} />
-        ) : (
-          <div className="card empty small">Nothing on your to-do list today.</div>
-        )}
-      </section>
+      <Link href="/schedule" className="btn sm" style={{ alignSelf: "flex-start" }}><Icon name="plus" size={16} />Add a to-do</Link>
+      {todoActions.sheets}
 
       <Link href="/habits/new" className="fab" aria-label="Add a habit"><Icon name="plus" size={26} stroke={2.2} /></Link>
       {deleting && (

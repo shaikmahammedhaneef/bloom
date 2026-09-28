@@ -1,7 +1,8 @@
 "use client";
-// To-dos for one day. Swipe a row left (or tap ⋯) to edit or delete it. For a
+// To-do rows. Swipe a row left (or tap ⋯) to edit or delete it. For a
 // repeating to-do, Bloom asks whether the change is for this day or all days.
-import { useCallback, useState } from "react";
+// useTodoActions gives single rows (to mix into other lists) plus the sheets.
+import { useCallback, useState, type ReactNode } from "react";
 import TodoForm, { type TodoFields } from "./TodoForm";
 import TodoRow from "./TodoRow";
 import { Sheet, SwipeRow } from "./ui";
@@ -23,12 +24,13 @@ function ScopeChoice({ pending, onChoose, onCancel }: { pending: Pending; onChoo
   );
 }
 
-export default function TodoList({ todos, setTodos, reload, toast }: {
-  todos: Todo[];
+type Opts = {
   setTodos: (fn: (todos: Todo[]) => Todo[]) => void;
   reload: () => void;
   toast: (m: string) => void;
-}) {
+};
+
+export function useTodoActions({ setTodos, reload, toast }: Opts): { row: (t: Todo) => ReactNode; sheets: ReactNode } {
   const [editing, setEditing] = useState<Todo | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const closeEdit = useCallback(() => setEditing(null), []);
@@ -89,19 +91,17 @@ export default function TodoList({ todos, setTodos, reload, toast }: {
     }
   }
 
-  return (
-    <>
-      <div className="card list">
-        {todos.map((t) => (
-          <SwipeRow key={t._id + t.date} label={t.title} actions={[
-            { label: "Edit", icon: "pen", onClick: () => setEditing(t) },
-            { label: "Delete", icon: "trash", tone: "danger", onClick: () => onDelete(t) },
-          ]}>
-            <TodoRow t={t} onToggle={() => toggle(t)} />
-          </SwipeRow>
-        ))}
-      </div>
+  const row = (t: Todo) => (
+    <SwipeRow key={t._id + t.date} label={t.title} actions={[
+      { label: "Edit", icon: "pen", onClick: () => setEditing(t) },
+      { label: "Delete", icon: "trash", tone: "danger", onClick: () => onDelete(t) },
+    ]}>
+      <TodoRow t={t} onToggle={() => toggle(t)} />
+    </SwipeRow>
+  );
 
+  const sheets = (
+    <>
       {editing && (
         <Sheet title={pending ? "Save changes for…" : "Edit to-do"} onClose={closeEdit}>
           {/* The form stays mounted under the scope question, so Cancel returns to it unchanged. */}
@@ -117,6 +117,18 @@ export default function TodoList({ todos, setTodos, reload, toast }: {
           <ScopeChoice pending={pending} onChoose={choose} onCancel={closeScope} />
         </Sheet>
       )}
+    </>
+  );
+
+  return { row, sheets };
+}
+
+export default function TodoList({ todos, ...opts }: Opts & { todos: Todo[] }) {
+  const { row, sheets } = useTodoActions(opts);
+  return (
+    <>
+      <div className="card list">{todos.map(row)}</div>
+      {sheets}
     </>
   );
 }

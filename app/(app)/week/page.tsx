@@ -61,17 +61,22 @@ export default function WeekPage() {
                   <div className="small" style={{ fontWeight: 600, color: d.pct !== null ? "var(--acc)" : "var(--muted)" }}>
                     {d.pct !== null ? `${d.pct}% done` : `${d.habits.length + d.todos.length} planned`}
                   </div>
-                  <div className="hstack" style={{ gap: 6 }}>
-                    {d.habits.map((h) => (
-                      <span key={h._id} className={`chip tone-${h.color}`} style={h.done ? { textDecoration: "line-through" } : undefined}>
-                        {h.startTime && <span style={{ fontWeight: 500 }}>{timeRange(h.startTime, h.endTime)}</span>} {h.name}
-                      </span>
-                    ))}
-                    {d.todos.map((t) => (
-                      <span key={t._id} className="chip" style={{ border: "1px dashed var(--muted)", textDecoration: t.done ? "line-through" : undefined }}>
-                        {t.startTime && <span style={{ fontWeight: 500 }}>{timeRange(t.startTime, t.endTime)}</span>} {t.title}
-                      </span>
-                    ))}
+                  <div className="stack" style={{ gap: 6, alignItems: "flex-start" }}>
+                    {/* Habits and to-dos together, in time order; untimed ones last. */}
+                    {[
+                      ...d.habits.map((h) => ({ key: h._id, start: h.startTime, end: h.endTime, name: h.name, done: h.done, tone: h.color as string | null })),
+                      ...d.todos.map((t) => ({ key: t._id, start: t.startTime, end: t.endTime, name: t.title, done: t.done, tone: null })),
+                    ]
+                      .sort((x, y) => (x.start || "99").localeCompare(y.start || "99") || (x.tone === null ? 1 : 0) - (y.tone === null ? 1 : 0))
+                      .map((x) => (
+                        <span key={x.key} className="chip"
+                          style={{
+                            ...(x.tone ? { background: `var(--t-${x.tone}-bg)`, color: `var(--t-${x.tone}-fg)` } : { border: "1px dashed var(--muted)" }),
+                            textDecoration: x.done ? "line-through" : undefined,
+                          }}>
+                          {x.start && <span style={{ fontWeight: 500 }}>{timeRange(x.start, x.end)}</span>} {x.name}
+                        </span>
+                      ))}
                     {!d.habits.length && !d.todos.length && <span className="muted small">Free day</span>}
                   </div>
                 </div>
