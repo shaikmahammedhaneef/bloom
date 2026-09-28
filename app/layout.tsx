@@ -1,15 +1,28 @@
 import type { Metadata, Viewport } from "next";
+import PwaSetup from "@/components/PwaSetup";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Bloom — routines, habits and mood",
   description: "Plan your routines, track habits and mood, and look after yourself.",
+  applicationName: "Bloom",
+  appleWebApp: { capable: true, title: "Bloom", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f2ea" },
+    { media: "(prefers-color-scheme: dark)", color: "#15171a" },
+  ],
+};
 
 // Applies the saved theme before paint so there is no flash of the wrong colors.
-const themeScript = `try{var t=JSON.parse(localStorage.getItem('bloom-theme')||'{}');var d=document.documentElement;if(t.accent)d.dataset.accent=t.accent;if(t.dark)d.dataset.theme='dark';}catch(e){}`;
+// Also holds on to Chrome's install prompt if it fires before React loads.
+const themeScript = `addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__bloomInstall=e});try{var t=JSON.parse(localStorage.getItem('bloom-theme')||'{}');var d=document.documentElement;if(t.accent)d.dataset.accent=t.accent;if(t.dark)d.dataset.theme='dark';}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -24,7 +37,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <PwaSetup />
+      </body>
     </html>
   );
 }

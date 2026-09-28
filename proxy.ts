@@ -3,7 +3,7 @@ import { COOKIE, verifyToken } from "./lib/jwt";
 
 const PUBLIC = ["/login", "/register"];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get(COOKIE)?.value;
   const uid = token ? await verifyToken(token) : null;

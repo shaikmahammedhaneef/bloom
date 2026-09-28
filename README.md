@@ -1,6 +1,6 @@
 # Bloom
 
-A self-care app for routines, habits, mood and health. Built with Next.js 15 (App Router), React 19, TypeScript and MongoDB (Mongoose). Everything is free — there are no premium features or paywalls.
+A self-care app for routines, habits, mood and health. Built with Next.js 16 (App Router), React 19, TypeScript and MongoDB (Mongoose). Everything is free — there are no premium features or paywalls.
 
 ## What's inside
 
@@ -49,7 +49,8 @@ For a production build: `npm run build && npm start`.
 
 ## Notes
 
-- **Reminders** run in the browser. They fire while Bloom is open in a tab. They show as system notifications if you allow them in Profile; otherwise they appear as a banner in the app. Reminders when the app is fully closed would need Web Push (a service worker plus a push server). That can be added later.
+- **Install as an app** — Bloom is a Progressive Web App. In Chrome or Edge, use Profile → App → Install app (or the install icon in the address bar). On Android, Chrome offers "Install app" from its menu. On iPhone, use Safari's Share → Add to Home Screen. Installing needs HTTPS (or `localhost`).
+- **Reminders** run in the browser. They fire while Bloom is open, in a tab or as an installed app, and pop up as system notifications (through the service worker in `public/sw.js`) once you allow them in Profile. Otherwise they appear as a banner in the app. Reminders when the app is fully closed would need Web Push (a push server with VAPID keys and a scheduled job). That can be added later.
 - **Dates** are the user's local calendar days, sent from the browser as `YYYY-MM-DD`. Times are `HH:mm`.
 - Collections are created on first use: `users`, `habits`, `habitlogs`, `todos`, `moods`, `journals`, `userchallenges`, `healths` and `sessions`.
 
@@ -64,7 +65,7 @@ app/
 components/         UI building blocks, app shell, reminders, forms
 lib/                dates, habit rules (streaks and schedules), catalog content, auth, db
 models/             Mongoose schemas
-middleware.ts       sends signed-out visitors to /login
+proxy.ts            sends signed-out visitors to /login
 ```
 
 ## API overview

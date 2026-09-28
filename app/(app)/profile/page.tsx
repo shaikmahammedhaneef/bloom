@@ -5,6 +5,8 @@ import { useMe } from "@/components/AppShell";
 import { Header, Loading, Stepper, Toast, Toggle } from "@/components/ui";
 import { api, useToast } from "@/lib/client";
 import { ACCENTS } from "@/lib/catalog";
+import { notifyPermission, requestNotifyPermission, showNotification, type NotifyPermission } from "@/lib/notify";
+import { promptInstall, useInstallState } from "@/lib/pwa";
 import type { Me } from "@/lib/types";
 
 const EXPORTS = [
@@ -20,7 +22,8 @@ export default function ProfilePage() {
   const { me, setMe, updateSettings } = useMe();
   const [name, setName] = useState("");
   const [roleModel, setRoleModel] = useState("");
-  const [perm, setPerm] = useState<string>("default");
+  const [perm, setPerm] = useState<NotifyPermission>("default");
+  const install = useInstallState();
   const toast = useToast();
 
   useEffect(() => {
@@ -30,7 +33,7 @@ export default function ProfilePage() {
     }
   }, [me?._id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    setPerm(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
+    setPerm(notifyPermission());
   }, []);
 
   if (!me) return <main className="shell"><Loading /></main>;
@@ -53,10 +56,16 @@ export default function ProfilePage() {
     }
   }
   async function askPermission() {
-    if (typeof Notification === "undefined") return;
-    const p = await Notification.requestPermission();
+    const p = await requestNotifyPermission();
     setPerm(p);
-    toast.show(p === "granted" ? "Notifications are on" : "Notifications are blocked. You can allow them in your browser's site settings.");
+    if (p === "granted") showNotification("Notifications are on", "Bloom will remind you about your routines here.", "/profile");
+    else toast.show("Notifications are blocked. You can allow them in your browser's site settings.");
+  }
+  async function testNotification() {
+    if (!(await showNotification("Test from Bloom", "Notifications are working.", "/profile"))) toast.show("Couldn't show a notification. Check your browser's site settings.");
+  }
+  async function installApp() {
+    if (await promptInstall()) toast.show("Bloom is installed");
   }
   async function logout() {
     await api("/api/auth/logout", { method: "POST" }).catch(() => {});
@@ -122,13 +131,39 @@ export default function ProfilePage() {
             <Toggle on={s.reminders.streak} onChange={(v) => set({ reminders: { ...s.reminders, streak: v } })} label="Streak alerts" />
           </div>
         </div>
-        {perm !== "granted" && perm !== "unsupported" && (
+        {perm === "default" && (
           <div className="notice stack" style={{ gap: 8 }}>
-            <span>Reminders show inside Bloom. Allow notifications to get them even when Bloom is in a background tab.</span>
+            <span>Reminders show inside Bloom. Allow notifications to get them as pop-ups, even when Bloom is in the background.</span>
             <button type="button" className="btn sm" style={{ alignSelf: "flex-start" }} onClick={askPermission}><Icon name="bell" size={16} />Allow notifications</button>
           </div>
         )}
-        <span className="muted small">Reminders work while Bloom is open in a browser tab.</span>
+        {perm === "denied" && (
+          <div className="notice">
+            Notifications are blocked for Bloom. In Chrome, click the icon to the left of the address bar, open Site settings, and set Notifications to Allow. Then reload Bloom.
+          </div>
+        )}
+        {perm === "granted" && (
+          <button type="button" className="btn sm" style={{ alignSelf: "flex-start" }} onClick={testNotification}><Icon name="bell" size={16} />Send a test notification</button>
+        )}
+        <span className="muted small">Reminders work while Bloom is open, in a browser tab or as an installed app.</span>
+      </section>
+
+      <section className="stack" aria-label="Install app">
+        <span className="section-title">App</span>
+        <div className="card">
+          {install === "installed" ? (
+            <div className="hstack" style={{ gap: 10 }}><Icon name="check" /><span>Bloom is installed on this device.</span></div>
+          ) : install === "available" ? (
+            <>
+              <span>Install Bloom to open it from your home screen or taskbar, in its own window.</span>
+              <button type="button" className="btn sm primary" style={{ alignSelf: "flex-start" }} onClick={installApp}><Icon name="download" size={16} />Install app</button>
+            </>
+          ) : install === "ios" ? (
+            <span>To install Bloom, tap the Share button in Safari, then choose Add to Home Screen.</span>
+          ) : (
+            <span className="muted">To install Bloom, open it in Chrome or Edge and choose Install from the browser menu (or the install icon in the address bar).</span>
+          )}
+        </div>
       </section>
 
       <section className="stack" aria-label="Daily goals">

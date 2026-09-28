@@ -4,6 +4,7 @@ import Icon from "@/components/Icon";
 import { Header, Seg, Toast } from "@/components/ui";
 import { api, useToast } from "@/lib/client";
 import { toKey } from "@/lib/dates";
+import { showNotification } from "@/lib/notify";
 
 const PATTERNS = [
   { key: "box", name: "Box 4-4-4-4", phases: [["Breathe in", 4], ["Hold", 4], ["Breathe out", 4], ["Hold", 4]] as [string, number][] },
@@ -146,7 +147,7 @@ function Focus({ onDone }: { onDone: (t: string, m: number, l: string) => void }
         beep();
         if (!s.onBreak) {
           onDone("focus", work, "Focus session");
-          if (typeof Notification !== "undefined" && Notification.permission === "granted") new Notification("Focus session done", { body: s.round >= rounds ? "All rounds finished." : `Take a ${brk}-minute break.` });
+          showNotification("Focus session done", s.round >= rounds ? "All rounds finished." : `Take a ${brk}-minute break.`, "/health/timer");
           if (s.round >= rounds) {
             clearInterval(id);
             setRunning(false);
