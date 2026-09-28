@@ -78,32 +78,48 @@ export default function JournalPage() {
       {error && <div className="error" role="alert">{error}</div>}
       <button type="button" className="btn primary block" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save entry"}</button>
 
-      <section className="stack" aria-label="Earlier entries">
-        <span className="section-title">Earlier entries</span>
-        {past.data && past.data.filter((p) => p.date !== date).length ? (
+      <section className="stack" aria-label="Your entries">
+        <span className="section-title">Your entries</span>
+        {past.loading && !past.data ? (
+          <div className="card empty small">Loading…</div>
+        ) : past.error && !past.data ? (
+          <div className="card small" role="alert"><span className="error">{past.error}</span><button type="button" className="btn sm" onClick={past.reload}>Try again</button></div>
+        ) : past.data && past.data.length ? (
           <div className="card list">
-            {past.data.filter((p) => p.date !== date).map((p) => (
-              <div key={p.date}>
-                <button type="button" className="row" style={{ width: "100%", border: "none", background: "transparent", textAlign: "left", padding: "6px 0" }} aria-expanded={open === p.date} onClick={() => setOpen(open === p.date ? null : p.date)}>
-                  {p.mood ? <Face level={p.mood} size={34} /> : <span className="tile tone-lilac" style={{ width: 34, height: 34, borderRadius: "50%" }}><Icon name="pen" size={16} /></span>}
-                  <div className="grow">
-                    <div className="row-title">{fmtDay(p.date)}</div>
-                    <div className="row-meta" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.text || p.gratitude.filter(Boolean).join(", ")}</div>
+            {past.data.map((p) => {
+              const good = p.gratitude.filter((g) => g && g.trim());
+              const isOpen = open === p.date;
+              return (
+                <div key={p.date} className="stack" style={{ gap: 8, padding: "10px 0" }}>
+                  <div className="row" style={{ minHeight: 0, padding: 0 }}>
+                    {p.mood ? <Face level={p.mood} size={34} /> : <span className="tile tone-lilac" style={{ width: 34, height: 34, borderRadius: "50%" }}><Icon name="pen" size={16} /></span>}
+                    <div className="grow">
+                      <div className="row-title">{p.date === date ? "Today" : fmtDay(p.date)}</div>
+                      {p.prompt && <div className="row-meta">{p.prompt}</div>}
+                    </div>
                   </div>
-                  <Icon name="chevR" size={18} />
-                </button>
-                {open === p.date && (
-                  <div className="stack" style={{ padding: "0 0 14px 46px", gap: 8 }}>
-                    {p.prompt && <div className="muted small">{p.prompt}</div>}
-                    {p.text && <p style={{ whiteSpace: "pre-wrap" }}>{p.text}</p>}
-                    {p.gratitude.some(Boolean) && <div className="small"><b>Good things:</b> {p.gratitude.filter(Boolean).join(" · ")}</div>}
-                  </div>
-                )}
-              </div>
-            ))}
+                  {good.length > 0 && (
+                    <div style={{ paddingLeft: 46 }}>
+                      <div className="small muted" style={{ fontWeight: 600, marginBottom: 4 }}>Three good things</div>
+                      <ol className="good-list">{good.map((g, i) => <li key={i}>{g}</li>)}</ol>
+                    </div>
+                  )}
+                  {p.text && (
+                    <div style={{ paddingLeft: 46 }}>
+                      <p className="small" style={{ whiteSpace: "pre-wrap", margin: 0, ...(isOpen ? {} : { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>{p.text}</p>
+                      {p.text.length > 120 && (
+                        <button type="button" className="btn ghost sm" style={{ padding: 0, minHeight: 30 }} aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : p.date)}>
+                          {isOpen ? "Show less" : "Read more"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
-          <div className="card empty small">Your past entries will show up here.</div>
+          <div className="card empty small">Your entries and good things will show up here after you save.</div>
         )}
       </section>
       <Toast msg={toast.msg} />

@@ -200,3 +200,5 @@ textarea.input { min-height: 110px; padding: 12px 14px; line-height: 1.5; resize
 .data-table th, .data-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
 .data-table th { color: var(--muted); font-weight: 600; }
 .table-wrap { max-height: 280px; overflow: auto; }
+.good-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 3px; font-size: 14px; }
+.good-list li::marker { color: var(--t-honey-fg); font-weight: 700; }
