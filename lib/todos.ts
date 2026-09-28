@@ -25,6 +25,12 @@ export function parseTodo(b: Record<string, unknown>, partial = false) {
     out.startTime = s;
     out.endTime = e;
   }
+  if ("endDate" in b) {
+    const e = b.endDate || "";
+    if (e && !isKey(e)) throw new HttpError(400, "Pick a valid end date.");
+    if (e && isKey(out.date) && e < out.date) throw new HttpError(400, "The end date can't be before the start date.");
+    out.endDate = e;
+  }
   if ("done" in b) out.done = Boolean(b.done);
   if ("reminder" in b) out.reminder = Boolean(b.reminder);
   if ("repeat" in b) {
@@ -46,6 +52,7 @@ export type TodoDoc = {
   endTime: string;
   done: boolean;
   reminder: boolean;
+  endDate?: string;
   repeat?: TodoRepeat;
   days?: number[];
   doneDates?: string[];
@@ -56,8 +63,8 @@ export const repeats = (t: { repeat?: string }) => t.repeat === "daily" || t.rep
 
 /** Whether a to-do shows up on a given day. */
 export function occursOn(t: TodoDoc, date: string): boolean {
-  if (!repeats(t)) return t.date === date;
-  if (date < t.date || t.skipDates?.includes(date)) return false;
+  if (date < t.date || (t.endDate && date > t.endDate) || t.skipDates?.includes(date)) return false;
+  if (!repeats(t)) return t.endDate ? true : t.date === date;
   return t.repeat === "daily" || (t.days ?? []).includes(dow(date));
 }
 
@@ -72,6 +79,8 @@ export function occurrence(t: TodoDoc, date: string): TodoItem {
     reminder: Boolean(t.reminder),
     repeat: repeats(t) ? (t.repeat as TodoRepeat) : "none",
     days: t.days ?? [],
+    startDate: t.date,
+    endDate: t.endDate ?? "",
     done: repeats(t) ? Boolean(t.doneDates?.includes(date)) : Boolean(t.done),
   };
 }
@@ -84,10 +93,9 @@ export async function loadTodos(uid: string, from: string, to: string, extra: Re
   const docs = (await Todo.find({
     userId: uid,
     ...extra,
-    $or: [
-      { repeat: { $in: ["daily", "days"] }, date: { $lte: to } },
-      { repeat: { $nin: ["daily", "days"] }, date: { $gte: from, $lte: to } },
-    ],
+    date: { $lte: to },
+    // Starts in the range, or started earlier and repeats or runs over several days into it.
+    $or: [{ date: { $gte: from } }, { endDate: { $gte: from } }, { repeat: { $in: ["daily", "days"] }, endDate: { $in: ["", null] } }],
   })
     .sort({ createdAt: 1 })
     .lean()) as unknown as TodoDoc[];

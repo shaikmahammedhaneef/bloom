@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
         })
       );
     } else if (kind === "moods") {
-      csv = toCsv(["date", "level", "emotions", "triggers", "note"], (await Mood.find({ userId: uid }).sort({ date: 1 }).lean()) as unknown as Row[]);
+      csv = toCsv(["date", "time", "level", "emotions", "triggers", "note"], (await Mood.find({ userId: uid }).sort({ date: 1, time: 1 }).lean()) as unknown as Row[]);
     } else if (kind === "journal") {
       csv = toCsv(["date", "prompt", "text", "gratitude"], (await Journal.find({ userId: uid }).sort({ date: 1 }).lean()) as unknown as Row[]);
     } else if (kind === "todos") {

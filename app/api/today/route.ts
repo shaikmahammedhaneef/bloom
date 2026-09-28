@@ -4,6 +4,7 @@ import { HttpError, ok, withUser } from "@/lib/server";
 import { addDays, isKey } from "@/lib/dates";
 import { byTime, habitToday, loadHabits } from "@/lib/habitsServer";
 import { pointsFor } from "@/lib/points";
+import { bestByDate } from "@/lib/moods";
 import { loadTodos } from "@/lib/todos";
 
 export async function GET(req: NextRequest) {
@@ -15,11 +16,12 @@ export async function GET(req: NextRequest) {
       .map((h) => habitToday(h, counts.get(h._id) ?? new Map(), date))
       .filter((h) => h.scheduled)
       .sort(byTime);
-    const [todos, mood, p] = await Promise.all([
+    const [todos, moods, p] = await Promise.all([
       loadTodos(uid, date, date),
-      Mood.findOne({ userId: uid, date }).lean(),
+      Mood.find({ userId: uid, date }).lean() as unknown as Promise<{ date: string; level: number; time?: string }[]>,
       pointsFor(uid),
     ]);
-    return ok({ date, habits: list, todos, mood, points: p.points });
+    const mood = bestByDate(moods).get(date) ?? null;
+    return ok({ date, habits: list, todos, mood, moodCount: moods.length, points: p.points });
   });
 }

@@ -1,11 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
 import MoodTabs from "@/components/MoodTabs";
 import { Bar, ErrorBox, Face, Header, Loading } from "@/components/ui";
 import { useApi } from "@/lib/client";
 import { MOOD_NAMES } from "@/lib/catalog";
-import { fmtDay, toKey } from "@/lib/dates";
+import { fmtDay, fmtTime, toKey } from "@/lib/dates";
 import type { Mood } from "@/lib/types";
 
 export default function MoodHistoryPage() {
@@ -18,22 +18,32 @@ export default function MoodHistoryPage() {
   const first = new Date(y, m - 1, 1);
   const daysIn = new Date(y, m, 0).getDate();
   const lead = (first.getDay() + 6) % 7;
-  const byDate = new Map((data ?? []).map((d) => [d.date, d]));
+  // The calendar shows each day's best check-in.
+  const byDate = useMemo(() => {
+    const best = new Map<string, Mood>();
+    for (const m of data ?? []) {
+      const b = best.get(m.date);
+      if (!b || m.level > b.level || (m.level === b.level && m.time > b.time)) best.set(m.date, m);
+    }
+    return best;
+  }, [data]);
+  const days = [...byDate.values()];
   const shift = (n: number) => {
     const d = new Date(y, m - 1 + n, 1);
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
     setPicked(null);
   };
 
-  const dist = [5, 4, 3, 2, 1].map((l) => ({ l, n: (data ?? []).filter((d) => d.level === l).length }));
+  const dist = [5, 4, 3, 2, 1].map((l) => ({ l, n: days.filter((d) => d.level === l).length }));
   const emo: Record<string, number> = {};
   (data ?? []).forEach((d) => d.emotions.forEach((e) => (emo[e] = (emo[e] ?? 0) + 1)));
   const topEmo = Object.entries(emo).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const lifts: Record<string, number> = {};
   (data ?? []).filter((d) => d.level >= 4).forEach((d) => d.triggers.forEach((t) => (lifts[t] = (lifts[t] ?? 0) + 1)));
   const topLifts = Object.entries(lifts).sort((a, b) => b[1] - a[1]).slice(0, 4);
-  const avg = data?.length ? data.reduce((a, b) => a + b.level, 0) / data.length : null;
+  const avg = days.length ? days.reduce((a, b) => a + b.level, 0) / days.length : null;
   const sel = picked ? byDate.get(picked) : null;
+  const selAll = picked ? (data ?? []).filter((m) => m.date === picked) : [];
 
   return (
     <main className="shell">
@@ -55,7 +65,7 @@ export default function MoodHistoryPage() {
               const isToday = k === today;
               return (
                 <button key={k} type="button" onClick={() => setPicked(md ? k : null)} disabled={!md}
-                  aria-label={`${fmtDay(k)}${md ? `, ${MOOD_NAMES[md.level - 1]}` : ", no check-in"}`}
+                  aria-label={`${fmtDay(k)}${md ? `, best mood ${MOOD_NAMES[md.level - 1]}` : ", no check-in"}`}
                   style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "4px 0", borderRadius: 10, border: picked === k ? "1.5px solid var(--acc)" : "1.5px solid transparent", background: isToday ? "var(--acc-soft)" : "transparent", cursor: md ? "pointer" : "default" }}>
                   <span style={{ fontSize: 11.5, fontWeight: isToday ? 600 : 500 }} className={isToday ? "" : "muted"}>{i + 1}</span>
                   {md ? <Face level={md.level} size={26} /> : <span style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px dashed var(--line)" }} />}
@@ -70,11 +80,23 @@ export default function MoodHistoryPage() {
         <section className="card" aria-live="polite">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Face level={sel.level} size={40} />
-            <div className="grow"><div className="row-title">{fmtDay(sel.date)}</div><div className="row-meta">{MOOD_NAMES[sel.level - 1]}</div></div>
+            <div className="grow">
+              <div className="row-title">{fmtDay(sel.date)}</div>
+              <div className="row-meta">Best: {MOOD_NAMES[sel.level - 1]}{selAll.length > 1 ? ` · ${selAll.length} check-ins` : ""}</div>
+            </div>
           </div>
-          {sel.emotions.length > 0 && <div className="hstack">{sel.emotions.map((e) => <span key={e} className="chip">{e}</span>)}</div>}
-          {sel.triggers.length > 0 && <div className="small muted">Shaped by: {sel.triggers.join(", ")}</div>}
-          {sel.note && <p style={{ whiteSpace: "pre-wrap" }}>{sel.note}</p>}
+          {selAll.map((m) => (
+            <div key={m._id} className="stack" style={{ gap: 6, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+              <div className="hstack" style={{ gap: 8 }}>
+                <Face level={m.level} size={24} />
+                <span style={{ fontWeight: 600 }}>{MOOD_NAMES[m.level - 1]}</span>
+                {m.time && <span className="muted small">{fmtTime(m.time)}</span>}
+              </div>
+              {m.emotions.length > 0 && <div className="hstack">{m.emotions.map((e) => <span key={e} className="chip">{e}</span>)}</div>}
+              {m.triggers.length > 0 && <div className="small muted">Shaped by: {m.triggers.join(", ")}</div>}
+              {m.note && <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{m.note}</p>}
+            </div>
+          ))}
         </section>
       )}
 

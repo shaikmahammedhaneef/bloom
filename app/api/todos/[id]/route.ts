@@ -6,6 +6,12 @@ import { occurrence, parseTodo, repeats, type TodoDoc } from "@/lib/todos";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+function checkRange(start: unknown, end: unknown) {
+  if (typeof start === "string" && typeof end === "string" && end && end < start) {
+    throw new HttpError(400, "The end date can't be before the start date.");
+  }
+}
+
 async function find(uid: string, id: string): Promise<TodoDoc> {
   if (!isObjectId(id)) throw new HttpError(404, "To-do not found.");
   const t = (await Todo.findOne({ _id: id, userId: uid }).lean()) as unknown as TodoDoc | null;
@@ -27,6 +33,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
     if (!repeats(t)) {
       const data = parseTodo(body, true);
+      checkRange(data.date ?? t.date, data.endDate ?? t.endDate);
       if (data.repeat === "none") delete data.days;
       const next = await Todo.findOneAndUpdate({ _id: id, userId: uid }, { $set: data }, { new: true }).lean();
       return ok(occurrence(next as unknown as TodoDoc, (next as unknown as TodoDoc).date));
@@ -44,7 +51,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (scope === "one") {
       // Split this day off as its own one-off to-do.
       const data = parseTodo({ title: t.title, startTime: t.startTime, endTime: t.endTime, reminder: t.reminder, ...body, date: on }, false);
-      const copy = await Todo.create({ ...data, repeat: "none", days: [], done: Boolean(t.doneDates?.includes(on)), userId: uid });
+      const copy = await Todo.create({ ...data, endDate: "", repeat: "none", days: [], done: Boolean(t.doneDates?.includes(on)), userId: uid });
       await Todo.updateOne({ _id: id, userId: uid }, { $addToSet: { skipDates: on } });
       return ok(occurrence(copy.toObject() as TodoDoc, on));
     }
@@ -53,6 +60,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     delete data.date;
     // Turning off repeat keeps just the day being edited.
     if (data.repeat === "none") Object.assign(data, { date: on, done: Boolean(t.doneDates?.includes(on)), doneDates: [], skipDates: [] });
+    checkRange(data.date ?? t.date, data.endDate ?? t.endDate);
     const next = await Todo.findOneAndUpdate({ _id: id, userId: uid }, { $set: data }, { new: true }).lean();
     return ok(occurrence(next as unknown as TodoDoc, on));
   });

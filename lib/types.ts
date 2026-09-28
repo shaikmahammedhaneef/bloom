@@ -37,6 +37,8 @@ export interface Todo {
   reminder: boolean;
   repeat: TodoRepeat;
   days: number[];
+  startDate: string; // first day (differs from `date` for repeating and multi-day to-dos)
+  endDate: string; // last day, or "" for none
 }
 
 export type TodoRepeat = "none" | "daily" | "days";
@@ -48,6 +50,7 @@ export interface Mood {
   emotions: string[];
   triggers: string[];
   note: string;
+  time: string;
 }
 
 export interface JournalEntry {
@@ -81,7 +84,8 @@ export interface TodayData {
   date: string;
   habits: HabitToday[];
   todos: Todo[];
-  mood: Mood | null;
+  mood: Mood | null; // the day's best check-in
+  moodCount: number;
   points: number;
 }
 

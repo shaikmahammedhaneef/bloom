@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { Journal, Mood } from "@/models";
 import { HttpError, ok, readBody, str, withUser } from "@/lib/server";
 import { isKey } from "@/lib/dates";
+import { bestByDate } from "@/lib/moods";
 
 export async function GET(req: NextRequest) {
   return withUser(async (uid) => {
@@ -11,8 +12,8 @@ export async function GET(req: NextRequest) {
     const moods = (await Mood.find({ userId: uid, date: { $in: entries.map((e) => e.date) } }).select("date level").lean()) as unknown as {
       date: string; level: number;
     }[];
-    const byDate = Object.fromEntries(moods.map((m) => [m.date, m.level]));
-    return ok(entries.map((e) => ({ ...e, mood: byDate[e.date] ?? null })));
+    const best = bestByDate(moods);
+    return ok(entries.map((e) => ({ ...e, mood: best.get(e.date)?.level ?? null })));
   });
 }
 

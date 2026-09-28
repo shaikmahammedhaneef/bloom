@@ -1,6 +1,6 @@
 "use client";
 import { Check } from "./ui";
-import { timeRange } from "@/lib/dates";
+import { fmtShort, timeRange } from "@/lib/dates";
 import type { Todo } from "@/lib/types";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -12,7 +12,8 @@ function repeatLabel(t: Todo) {
 }
 
 export default function TodoRow({ t, onToggle }: { t: Todo; onToggle: () => void }) {
-  const meta = [t.startTime ? timeRange(t.startTime, t.endTime) : "No set time", repeatLabel(t), t.reminder && t.startTime ? "Reminder on" : ""];
+  const span = t.endDate ? (t.repeat === "none" ? `${fmtShort(t.startDate)} – ${fmtShort(t.endDate)}` : `until ${fmtShort(t.endDate)}`) : "";
+  const meta = [t.startTime ? timeRange(t.startTime, t.endTime) : "No set time", repeatLabel(t), span, t.reminder && t.startTime ? "Reminder on" : ""];
   return (
     <div className="row">
       <Check done={t.done} label={t.title} onClick={onToggle} />

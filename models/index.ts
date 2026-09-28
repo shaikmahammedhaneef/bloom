@@ -70,7 +70,8 @@ const TodoSchema = new Schema(
   {
     userId: { type: ObjectId, required: true },
     title: { type: String, required: true },
-    date: { type: String, required: true }, // the day, or the first day of a repeating to-do
+    date: { type: String, required: true }, // the day, or the first day of a repeating or multi-day to-do
+    endDate: { type: String, default: "" }, // last day: a multi-day to-do, or when a repeat stops
     startTime: { type: String, default: "" },
     endTime: { type: String, default: "" },
     done: { type: Boolean, default: false }, // one-off to-dos only
@@ -109,10 +110,12 @@ const MoodSchema = new Schema(
     emotions: { type: [String], default: [] },
     triggers: { type: [String], default: [] },
     note: { type: String, default: "" },
+    time: { type: String, default: "" }, // HH:mm, when the check-in was made
   },
   opts
 );
-MoodSchema.index({ userId: 1, date: 1 }, { unique: true });
+// Several check-ins per day are allowed (see lib/moods.ts for the old unique index).
+MoodSchema.index({ userId: 1, date: 1, time: 1 });
 
 const JournalSchema = new Schema(
   {

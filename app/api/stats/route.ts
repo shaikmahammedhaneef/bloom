@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { Health, Mood } from "@/models";
+import { bestByDate } from "@/lib/moods";
 import { HttpError, ok, withUser } from "@/lib/server";
 import { addDays, duration, isKey, parseKey, partOfDay, toKey } from "@/lib/dates";
 import { loadHabits } from "@/lib/habitsServer";
@@ -30,7 +31,8 @@ export async function GET(req: NextRequest) {
     // Habits over the last 90 days (for insights) and the chosen range.
     const since = from < addDays(today, -89) ? from : addDays(today, -89);
     const { habits, counts } = await loadHabits(uid, since, today);
-    const moods = (await Mood.find({ userId: uid, date: { $gte: since, $lte: today } }).lean()) as unknown as { date: string; level: number }[];
+    // A day's mood is its best check-in.
+    const moods = [...bestByDate((await Mood.find({ userId: uid, date: { $gte: since, $lte: today } }).lean()) as unknown as { date: string; level: number; time?: string }[]).values()];
     const moodBy = new Map(moods.map((m) => [m.date, m.level]));
 
     const days: { date: string; pct: number | null }[] = [];

@@ -35,7 +35,7 @@ export async function pointsFor(uid: string) {
     if (h.goal > 1) goalHits++;
   }
   const [moods, journals, sessions, breathe, focus, challenges] = await Promise.all([
-    Mood.countDocuments({ userId: uid }),
+    Mood.distinct("date", { userId: uid }).then((d: string[]) => d.length), // points once per day
     Journal.countDocuments({ userId: uid }),
     Session.countDocuments({ userId: uid }),
     Session.countDocuments({ userId: uid, type: "breathe" }),
@@ -62,7 +62,7 @@ export async function achievements(uid: string, today: string) {
     b("early-bird", "Early bird", "Finish 10 habits that start before 8:00", "sun", p.early >= 10),
     b("goal-getter", "Goal getter", "Hit a count goal, like 8 glasses, 7 times", "drop", p.goalHits >= 7),
     b("first-journal", "First journal", "Write your first journal entry", "pen", p.journals >= 1),
-    b("mood-mapper", "Mood mapper", "Check in your mood 7 times", "smile", p.moods >= 7),
+    b("mood-mapper", "Mood mapper", "Check in your mood on 7 days", "smile", p.moods >= 7),
     b("century", "100 habits", "Complete 100 habits", "star", p.habitsDone >= 100),
     b("zen", "Zen master", "Finish 10 breathing sessions", "wind", p.breathe >= 10),
     b("deep-focus", "Deep focus", "Finish 10 focus sessions", "target", p.focus >= 10),

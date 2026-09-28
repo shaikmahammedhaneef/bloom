@@ -134,14 +134,20 @@ textarea.input { min-height: 110px; padding: 12px 14px; line-height: 1.5; resize
 .empty { text-align: center; padding: 22px 12px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .loading { padding: 40px 0; text-align: center; color: var(--muted); }
 
-.timeline { position: relative; }
-.tl-hour { position: absolute; left: 0; width: 44px; font-size: 12px; color: var(--muted); text-align: right; transform: translateY(-8px); }
+.tl-scroll { max-height: min(64vh, 620px); overflow-y: auto; margin: 0 -4px; padding: 0 4px; overscroll-behavior: contain; }
+.timeline { position: relative; --tl-gutter: 56px; }
+.tl-hour { position: absolute; left: 0; width: 46px; font-size: 11.5px; color: var(--muted); text-align: right; transform: translateY(-7px); white-space: nowrap; }
 .tl-line { position: absolute; left: 52px; right: 0; height: 1px; background: var(--line); }
-.tl-block { position: absolute; border-radius: 10px; padding: 6px 8px; font-size: 13px; font-weight: 600; overflow: hidden; display: flex; flex-direction: column; gap: 1px; border: 1px solid var(--surf); }
-.tl-block small { font-weight: 500; font-size: 11.5px; opacity: 0.9; }
+.tl-block { text-align: left; cursor: pointer; position: absolute; border-radius: 9px; padding: 5px 8px; font-size: 13px; font-weight: 600; line-height: 1.25; overflow: hidden; display: flex; flex-direction: column; gap: 1px; border: 1px solid var(--surf); box-shadow: 0 0 0 1px var(--surf); min-width: 0; }
+.tl-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-block small { font-weight: 500; font-size: 11.5px; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-block.compact { flex-direction: row; align-items: center; gap: 6px; padding-top: 0; padding-bottom: 0; }
+.tl-block.compact .tl-title { flex: 0 1 auto; min-width: 0; }
+.tl-block.compact small { flex: 1 1 0; min-width: 0; }
 .tl-block.is-done { opacity: 0.55; }
 .tl-block.todo { background: var(--surf); border: 1.5px dashed var(--muted); color: var(--ink); }
-.tl-now { position: absolute; left: 48px; right: 0; height: 2px; background: #c8643b; }
+.tl-now { position: absolute; left: 48px; right: 0; height: 2px; background: #c8643b; z-index: 2; pointer-events: none; }
+.tl-now::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: #c8643b; }
 
 .heat { display: flex; gap: 4px; }
 .heat-col { display: flex; flex-direction: column; gap: 4px; }

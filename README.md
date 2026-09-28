@@ -8,10 +8,10 @@ A self-care app for routines, habits, mood and health. Built with Next.js 16 (Ap
 - **Onboarding** — pick goals, how you recharge and who you want to become. You get suggested routines.
 - **Today** — habits grouped into morning, afternoon, evening and anytime. Check-offs, count goals (like 8 glasses), streaks and points.
 - **From and to times** — every habit and to-do has a from time and a to time. The schedule shows them as time blocks.
-- **Schedule and week** — a day timeline with overlapping blocks and a to-do list, plus a week view.
+- **Schedule and week** — a full-day timeline (12 AM to 12 AM) that lays overlapping blocks out side by side, with tap-for-details, a to-do list, and a week view.
 - **Habits** — icons, colors, categories, and repeat settings (every day, some days, or X times a week). Also daily goals, reminders, and a 16-week heatmap with current and best streaks.
 - **Templates** — 10 ready-made routines, all with times.
-- **Mood** — a 5-point check-in with emotions, triggers and a note. Also a journal with prompts, three good things, and a mood calendar with stats.
+- **Mood** — a 5-point check-in with emotions, triggers and a note. Check in as often as you like; the calendar, trends and insights use each day's best mood. Also a journal with prompts, three good things, and a mood calendar with stats.
 - **Progress** — daily completion charts, mood trend, and mood-versus-habit insights. Points, 10 levels and 12 badges.
 - **Challenges** — 7-day and 21-day challenges.
 - **Health** — water, sleep (bedtime to wake time), steps and weight. Also a breathing timer (3 patterns), a Pomodoro focus timer and 4 guided workouts.
@@ -63,7 +63,7 @@ Each browser that allows notifications gets its own push subscription, which is 
 
 - **Install as an app** — Bloom is a Progressive Web App. In Chrome or Edge, use Profile → App → Install app (or the install icon in the address bar). On Android, Chrome offers "Install app" from its menu. On iPhone, use Safari's Share → Add to Home Screen. Installing needs HTTPS (or `localhost`).
 - **Reminders** fire while Bloom is open, in a tab or as an installed app, and pop up as system notifications (through the service worker in `public/sw.js`) once you allow them in Profile. Otherwise they appear as a banner in the app. With push set up (below), they also arrive while Bloom is closed.
-- **To-dos** can repeat every day or on chosen weekdays. Swipe a to-do left (or tap ⋯) to edit or delete it. For a repeating to-do, you choose "Only this day" or "All scheduled".
+- **To-dos** go on any date, can run over several days (Date → Until), and can repeat every day or on chosen weekdays (optionally until a date). Swipe a to-do left (or tap ⋯) to edit or delete it; swipe a habit on Today to view, edit or delete it. For a repeating to-do, you choose "Only this day" or "All scheduled".
 - **Dates** are the user's local calendar days, sent from the browser as `YYYY-MM-DD`. Times are `HH:mm`.
 - Collections are created on first use: `users`, `habits`, `habitlogs`, `todos`, `moods`, `journals`, `userchallenges`, `healths`, `sessions`, `pushsubs` and `remindersents`.
 
@@ -97,7 +97,8 @@ proxy.ts            sends signed-out visitors to /login
 | GET, POST, DELETE | /api/push | Push key, and save or remove this browser's push subscription |
 | GET | /api/cron/reminders | Sends due push reminders; call every minute with the `CRON_SECRET` |
 | GET | /api/week?start=&today= | Week overview |
-| GET, POST | /api/mood?date= or ?month= | Mood check-ins |
+| GET, POST | /api/mood?date= or ?month= | List or add mood check-ins (several per day) |
+| PATCH, DELETE | /api/mood/:id | Edit or delete a check-in |
 | GET, POST | /api/journal | Journal entries |
 | GET, POST | /api/challenges?today= | Challenge catalog, or join one |
 | PATCH, DELETE | /api/challenges/:id | Mark a day, or leave |

@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
 import HabitRow from "@/components/HabitRow";
 import TodoList from "@/components/TodoList";
-import { ErrorBox, Face, Loading, Ring, Toast } from "@/components/ui";
+import { ErrorBox, Face, Loading, Ring, Sheet, SwipeRow, Toast } from "@/components/ui";
 import { useMe } from "@/components/AppShell";
 import { api, useApi, useToast } from "@/lib/client";
 import { fmtLong, greeting, partOfDay, toKey, type Part } from "@/lib/dates";
@@ -22,6 +23,9 @@ export default function TodayPage() {
   const { me } = useMe();
   const { data, error, loading, reload, setData } = useApi<TodayData>(`/api/today?date=${date}`);
   const toast = useToast();
+  const router = useRouter();
+  const [deleting, setDeleting] = useState<HabitToday | null>(null);
+  const closeDelete = useCallback(() => setDeleting(null), []);
 
   const groups = useMemo(() => {
     const g: Record<Part, HabitToday[]> = { morning: [], afternoon: [], evening: [], anytime: [] };
@@ -37,6 +41,18 @@ export default function TodayPage() {
   const done = data.habits.filter((h) => h.done).length;
   const pct = total ? Math.round((done / total) * 100) : 0;
   const topStreak = Math.max(0, ...data.habits.filter((h) => h.streakUnit === "day").map((h) => h.streak));
+
+  async function removeHabit(h: HabitToday) {
+    setDeleting(null);
+    try {
+      await api(`/api/habits/${h._id}`, { method: "DELETE" });
+      setData((d) => d && { ...d, habits: d.habits.filter((x) => x._id !== h._id) });
+      toast.show(`${h.name} deleted`);
+      reload();
+    } catch (e) {
+      toast.show((e as Error).message);
+    }
+  }
 
   async function setCount(h: HabitToday, count: number) {
     const before = data;
@@ -97,8 +113,8 @@ export default function TodayPage() {
       ) : (
         <Link href="/mood" className="soft" style={{ flexDirection: "row", alignItems: "center", gap: 12, background: "var(--t-lilac-bg)", color: "var(--t-lilac-fg)" }}>
           <Face level={data.mood.level} size={30} />
-          <span className="grow" style={{ fontWeight: 600 }}>Mood checked in</span>
-          <span style={{ fontWeight: 600 }}>Edit</span>
+          <span className="grow" style={{ fontWeight: 600 }}>{data.moodCount > 1 ? `${data.moodCount} check-ins today` : "Mood checked in"}</span>
+          <span style={{ fontWeight: 600, display: "flex", alignItems: "center" }}>Check in again <Icon name="chevR" size={14} /></span>
         </Link>
       )}
 
@@ -120,7 +136,15 @@ export default function TodayPage() {
               <span style={{ fontWeight: 600, color: "var(--ink)" }}>{p.label}</span>
             </div>
             <div className="card list">
-              {groups[p.key].map((h) => <HabitRow key={h._id} h={h} onSet={(c) => setCount(h, c)} />)}
+              {groups[p.key].map((h) => (
+                <SwipeRow key={h._id} label={h.name} actions={[
+                  { label: "View", icon: "chart", onClick: () => router.push(`/habits/${h._id}`) },
+                  { label: "Edit", icon: "pen", onClick: () => router.push(`/habits/${h._id}/edit`) },
+                  { label: "Delete", icon: "trash", tone: "danger", onClick: () => setDeleting(h) },
+                ]}>
+                  <HabitRow h={h} onSet={(c) => setCount(h, c)} />
+                </SwipeRow>
+              ))}
             </div>
           </section>
         ) : null
@@ -139,6 +163,13 @@ export default function TodayPage() {
       </section>
 
       <Link href="/habits/new" className="fab" aria-label="Add a habit"><Icon name="plus" size={26} stroke={2.2} /></Link>
+      {deleting && (
+        <Sheet title="Delete habit?" onClose={closeDelete}>
+          <p className="muted" style={{ margin: 0 }}>“{deleting.name}” and all its history will be deleted. This can’t be undone.</p>
+          <button type="button" className="btn danger block" onClick={() => removeHabit(deleting)}>Delete habit</button>
+          <button type="button" className="btn ghost block" onClick={closeDelete}>Cancel</button>
+        </Sheet>
+      )}
       <Toast msg={toast.msg} />
     </main>
   );
