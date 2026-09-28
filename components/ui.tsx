@@ -164,16 +164,18 @@ export function TimeInput({ id, value, onChange, label, optional = true }: { id?
   );
 }
 
-export function TimePair({ from, to, onFrom, onTo, idPrefix }: { from: string; to: string; onFrom: (v: string) => void; onTo: (v: string) => void; idPrefix: string }) {
+export function TimePair({ from, to, onFrom, onTo, idPrefix, fromLabel = "From", toLabel = "To" }: {
+  from: string; to: string; onFrom: (v: string) => void; onTo: (v: string) => void; idPrefix: string; fromLabel?: string; toLabel?: string;
+}) {
   return (
     <div className="time-pair">
       <div className="field">
-        <label htmlFor={`${idPrefix}-from`}>From</label>
-        <TimeInput id={`${idPrefix}-from`} label="From" value={from} onChange={onFrom} />
+        <label htmlFor={`${idPrefix}-from`}>{fromLabel}</label>
+        <TimeInput id={`${idPrefix}-from`} label={fromLabel} value={from} onChange={onFrom} />
       </div>
       <div className="field">
-        <label htmlFor={`${idPrefix}-to`}>To</label>
-        <TimeInput id={`${idPrefix}-to`} label="To" value={to} onChange={onTo} />
+        <label htmlFor={`${idPrefix}-to`}>{toLabel}</label>
+        <TimeInput id={`${idPrefix}-to`} label={toLabel} value={to} onChange={onTo} />
       </div>
     </div>
   );

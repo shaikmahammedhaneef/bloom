@@ -3,6 +3,7 @@ import { Health, Session, User } from "@/models";
 import { HttpError, num, ok, readBody, withUser } from "@/lib/server";
 import { addDays, duration, isKey, isTime } from "@/lib/dates";
 import type { HealthDay } from "@/lib/types";
+import { waterToHabits } from "@/lib/water";
 
 const blank = (date: string): HealthDay => ({ date, water: 0, steps: 0, weight: null, sleepStart: "", sleepEnd: "" });
 
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
     for (let i = 6; i >= 0; i--) {
       const k = addDays(date, -i);
       const d = byDate.get(k);
-      week.push({ date: k, sleepMin: d ? duration(d.sleepStart, d.sleepEnd) : null, steps: d?.steps ?? 0 });
+      week.push({ date: k, sleepMin: d ? duration(d.sleepStart, d.sleepEnd) : null, sleepStart: d?.sleepStart ?? "", sleepEnd: d?.sleepEnd ?? "", steps: d?.steps ?? 0 });
     }
     const weights = docs.filter((d) => typeof d.weight === "number").sort((a, b) => a.date.localeCompare(b.date))
       .map((d) => ({ date: d.date, weight: d.weight as number }));
@@ -56,6 +57,7 @@ export async function POST(req: Request) {
       }
     }
     const doc = await Health.findOneAndUpdate({ userId: uid, date: b.date }, { $set: set }, { upsert: true, new: true }).lean();
+    if (typeof set.water === "number") await waterToHabits(uid, b.date, set.water);
     return ok(doc);
   });
 }

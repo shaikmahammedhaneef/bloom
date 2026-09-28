@@ -1,15 +1,15 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Icon from "@/components/Icon";
 import { ErrorBox, Header, Loading, Ring, TimePair, Toast } from "@/components/ui";
 import { api, useApi, useToast } from "@/lib/client";
-import { duration, fmtDur, fmtLong, parseKey, toKey } from "@/lib/dates";
+import { addDays, duration, fmtDay, fmtDur, fmtLong, parseKey, toKey } from "@/lib/dates";
 import type { HealthDay } from "@/lib/types";
 
 type HealthData = {
   today: HealthDay;
-  week: { date: string; sleepMin: number | null; steps: number }[];
+  week: { date: string; sleepMin: number | null; sleepStart: string; sleepEnd: string; steps: number }[];
   weights: { date: string; weight: number }[];
   goals: { water: number; steps: number };
   sessions: { type: string; minutes: number }[];
@@ -23,27 +23,58 @@ export default function HealthPage() {
   const [steps, setSteps] = useState("");
   const [weight, setWeight] = useState("");
   const toast = useToast();
+  // Sleep is saved on the day you woke up, and shown as the night before it.
+  const [wakeDay, setWakeDay] = useState(date);
+  const night = addDays(wakeDay, -1);
 
   useEffect(() => {
     if (!data) return;
-    setSleepStart(data.today.sleepStart);
-    setSleepEnd(data.today.sleepEnd);
     setSteps(data.today.steps ? String(data.today.steps) : "");
     setWeight(data.today.weight ? String(data.today.weight) : "");
   }, [data?.today.date]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function save(body: Record<string, unknown>, msg?: string) {
+  const loaded = Boolean(data);
+  useEffect(() => {
+    const w = data?.week.find((x) => x.date === wakeDay);
+    setSleepStart(w?.sleepStart ?? "");
+    setSleepEnd(w?.sleepEnd ?? "");
+  }, [wakeDay, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function save(body: Record<string, unknown>, msg?: string, on = date) {
     try {
-      await api("/api/health", { body: { date, ...body } });
+      await api("/api/health", { body: { date: on, ...body } });
       if (msg) toast.show(msg);
       reload();
     } catch (e) {
       toast.show((e as Error).message);
     }
   }
+
+  // Water taps update the screen at once and are saved one after another, so
+  // the last tap always wins even when tapping fast.
+  const water = useRef<{ want: number | null; busy: boolean }>({ want: null, busy: false });
+  async function flushWater() {
+    const w = water.current;
+    if (w.busy) return;
+    w.busy = true;
+    try {
+      while (w.want !== null) {
+        const n = w.want;
+        w.want = null;
+        await api("/api/health", { body: { date, water: n } });
+      }
+    } catch (e) {
+      w.want = null;
+      toast.show((e as Error).message);
+      reload();
+    } finally {
+      w.busy = false;
+    }
+  }
   function setWater(n: number) {
     setData((d) => d && { ...d, today: { ...d.today, water: n } });
-    save({ water: n });
+    water.current.want = n;
+    flushWater();
   }
 
   if (loading && !data) return <main className="shell"><Loading /></main>;
@@ -93,19 +124,33 @@ export default function HealthPage() {
 
       <section className="card" aria-label="Sleep">
         <div className="between">
-          <div className="hstack" style={{ fontWeight: 600, gap: 8 }}><span style={{ color: "var(--t-sky-fg)", display: "flex" }}><Icon name="bed" size={18} /></span>Sleep last night</div>
+          <div className="hstack" style={{ fontWeight: 600, gap: 8 }}><span style={{ color: "var(--t-sky-fg)", display: "flex" }}><Icon name="bed" size={18} /></span>Sleep</div>
           <span className="big-num" style={{ fontSize: 24 }}>{sleepMin ? fmtDur(sleepMin) : "–"}</span>
         </div>
-        <TimePair idPrefix="sleep" from={sleepStart} to={sleepEnd} onFrom={setSleepStart} onTo={setSleepEnd} />
-        <button type="button" className="btn sm" style={{ alignSelf: "flex-start" }} disabled={!sleepStart || !sleepEnd} onClick={() => save({ sleepStart, sleepEnd }, "Sleep saved")}>Save sleep</button>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 100 }} role="img" aria-label={`Sleep in the last 7 days: ${data.week.map((w) => (w.sleepMin ? fmtDur(w.sleepMin) : "not logged")).join(", ")}`}>
-          {data.week.map((w) => (
-            <div key={w.date} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-              <div style={{ width: "100%", maxWidth: 26, height: w.sleepMin ? Math.max(6, (w.sleepMin / maxSleep) * 76) : 4, borderRadius: 7, background: w.date === date ? "var(--t-sky-fg)" : "#A9C8E4" }} />
-              <span className="muted" style={{ fontSize: 11.5 }}>{parseKey(w.date).toLocaleDateString("en-GB", { weekday: "narrow" })}</span>
-            </div>
-          ))}
+        <div className="between">
+          <button type="button" className="icon-btn sm" aria-label="Earlier night" disabled={wakeDay <= addDays(date, -6)} onClick={() => setWakeDay(addDays(wakeDay, -1))}><Icon name="chevL" size={18} /></button>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontWeight: 600 }}>{wakeDay === date ? "Last night" : `Night of ${fmtDay(night)}`}</div>
+            <div className="muted small">{fmtDay(night)} → {fmtDay(wakeDay)}</div>
+          </div>
+          <button type="button" className="icon-btn sm" aria-label="Later night" disabled={wakeDay >= date} onClick={() => setWakeDay(addDays(wakeDay, 1))}><Icon name="chevR" size={18} /></button>
         </div>
+        <TimePair idPrefix="sleep" fromLabel="Went to bed" toLabel="Woke up" from={sleepStart} to={sleepEnd} onFrom={setSleepStart} onTo={setSleepEnd} />
+        <button type="button" className="btn sm" style={{ alignSelf: "flex-start" }} disabled={!sleepStart || !sleepEnd} onClick={() => save({ sleepStart, sleepEnd }, "Sleep saved", wakeDay)}>Save sleep</button>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 100 }} role="group" aria-label="Sleep in the last 7 nights">
+          {data.week.map((w) => {
+            const n = addDays(w.date, -1);
+            return (
+              <button key={w.date} type="button" onClick={() => setWakeDay(w.date)} aria-pressed={w.date === wakeDay}
+                aria-label={`Night of ${fmtDay(n)}: ${w.sleepMin ? fmtDur(w.sleepMin) : "not logged"}`}
+                style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 4, height: "100%", border: "none", background: "transparent", padding: 0 }}>
+                <div style={{ width: "100%", maxWidth: 26, height: w.sleepMin ? Math.max(6, (w.sleepMin / maxSleep) * 76) : 4, borderRadius: 7, background: w.date === wakeDay ? "var(--t-sky-fg)" : "#A9C8E4" }} />
+                <span className="muted" style={{ fontSize: 11.5, fontWeight: w.date === wakeDay ? 700 : 400 }}>{parseKey(n).toLocaleDateString("en-GB", { weekday: "narrow" })}</span>
+              </button>
+            );
+          })}
+        </div>
+        <span className="muted small">Bars show the night each sleep started. Tap one to edit it.</span>
       </section>
 
       <div className="grid2">
