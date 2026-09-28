@@ -55,9 +55,21 @@ export function fmtDur(min: number): string {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
+/** "HH:mm" → "7:05 AM". Times are stored in 24-hour form and shown in 12-hour form. */
+export function fmtTime(t?: string | null): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/** An hour of the day as a short label: 0 → "12 AM", 13 → "1 PM". */
+export function fmtHour(h: number): string {
+  return `${h % 12 || 12} ${h % 24 < 12 ? "AM" : "PM"}`;
+}
+
 export function timeRange(start?: string | null, end?: string | null): string {
   if (!start) return "";
-  return end ? `${start} – ${end}` : start;
+  return end ? `${fmtTime(start)} – ${fmtTime(end)}` : fmtTime(start);
 }
 
 export type Part = "morning" | "afternoon" | "evening" | "anytime";

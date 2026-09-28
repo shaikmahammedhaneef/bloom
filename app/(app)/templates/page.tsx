@@ -5,7 +5,7 @@ import { Header, Tile, Toast } from "@/components/ui";
 import { api, useToast } from "@/lib/client";
 import { TEMPLATE_KINDS, TEMPLATES } from "@/lib/catalog";
 import { repeatLabel } from "@/lib/habitLogic";
-import { toKey } from "@/lib/dates";
+import { timeRange, toKey } from "@/lib/dates";
 
 export default function TemplatesPage() {
   const [kind, setKind] = useState("All");
@@ -63,7 +63,7 @@ export default function TemplatesPage() {
                     <Tile icon={h.icon} tone={h.color} size={34} radius={10} iconSize={17} />
                     <div className="grow">
                       <div className="row-title" style={{ fontSize: 14 }}>{h.name}</div>
-                      <div className="row-meta">{h.startTime} – {h.endTime}  ·  {repeatLabel({ repeat: h.repeat, timesPerWeek: h.timesPerWeek ?? 3, days: h.days ?? [] })}{h.goal ? `  ·  ${h.goal} ${h.unit}` : ""}</div>
+                      <div className="row-meta">{timeRange(h.startTime, h.endTime)}  ·  {repeatLabel({ repeat: h.repeat, timesPerWeek: h.timesPerWeek ?? 3, days: h.days ?? [] })}{h.goal ? `  ·  ${h.goal} ${h.unit}` : ""}</div>
                     </div>
                   </div>
                 ))}

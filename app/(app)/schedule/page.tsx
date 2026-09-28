@@ -5,7 +5,7 @@ import TodoForm from "@/components/TodoForm";
 import TodoRow from "@/components/TodoRow";
 import { ErrorBox, Header, Loading, SegLinks, Toast } from "@/components/ui";
 import { api, useApi, useToast } from "@/lib/client";
-import { addDays, fmtLong, nowTime, timeRange, toKey, toMin } from "@/lib/dates";
+import { addDays, fmtHour, fmtLong, nowTime, timeRange, toKey, toMin } from "@/lib/dates";
 import type { TodayData } from "@/lib/types";
 
 const PX = 44; // pixels per hour
@@ -119,7 +119,7 @@ export default function SchedulePage() {
             <div className="timeline" style={{ height: (endHour - startHour) * PX + 4 }}>
               {hours.map((h) => (
                 <div key={h}>
-                  <div className="tl-hour" style={{ top: (h - startHour) * PX }}>{String(h).padStart(2, "0")}:00</div>
+                  <div className="tl-hour" style={{ top: (h - startHour) * PX }}>{fmtHour(h)}</div>
                   <div className="tl-line" style={{ top: (h - startHour) * PX }} />
                 </div>
               ))}

@@ -6,7 +6,7 @@ import { ErrorBox, Header, Loading, Tile, Toast } from "@/components/ui";
 import { api, useApi, useToast } from "@/lib/client";
 import { CATEGORIES } from "@/lib/catalog";
 import { isScheduled, repeatLabel } from "@/lib/habitLogic";
-import { addDays, duration, fmtDur, parseKey, timeRange, toKey, weekStart } from "@/lib/dates";
+import { addDays, duration, fmtDur, fmtTime, parseKey, timeRange, toKey, weekStart } from "@/lib/dates";
 import type { Habit } from "@/lib/types";
 
 type Detail = { habit: Habit; counts: Record<string, number>; streak: number; best: number; streakUnit: string; rate: number | null; totalDone: number };
@@ -56,7 +56,7 @@ export default function HabitDetailPage() {
           <span className="chip"><Icon name="clock" size={14} />{h.startTime ? `${timeRange(h.startTime, h.endTime)}${dur ? ` (${fmtDur(dur)})` : ""}` : "Anytime"}</span>
           <span className="chip"><Icon name="cal" size={14} />{repeatLabel(h)}</span>
           {h.goal > 1 && <span className="chip"><Icon name="target" size={14} />{h.goal} {h.unit}</span>}
-          {h.reminder && h.startTime && <span className="chip"><Icon name="bell" size={14} />Reminder {h.startTime}</span>}
+          {h.reminder && h.startTime && <span className="chip"><Icon name="bell" size={14} />Reminder {fmtTime(h.startTime)}</span>}
         </div>
       </div>
       <div className="grid3">

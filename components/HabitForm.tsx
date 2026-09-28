@@ -5,7 +5,7 @@ import Icon from "./Icon";
 import { Seg, Stepper, TimePair, Toggle } from "./ui";
 import { api } from "@/lib/client";
 import { CATEGORIES, ICONS, TONES } from "@/lib/catalog";
-import { duration, fmtDur, partOfDay, toKey } from "@/lib/dates";
+import { duration, fmtDur, fmtTime, partOfDay, toKey } from "@/lib/dates";
 import type { Habit, Repeat } from "@/lib/types";
 
 const DAY_BTNS = [
@@ -162,7 +162,7 @@ export default function HabitForm({ initial }: { initial?: Habit }) {
         <Icon name="bell" />
         <div className="grow">
           <div className="row-title">Reminder</div>
-          <div className="row-meta">{from ? `At ${from}, while Bloom is open` : "Add a 'from' time to get reminders"}</div>
+          <div className="row-meta">{from ? `At ${fmtTime(from)}, while Bloom is open` : "Add a 'from' time to get reminders"}</div>
         </div>
         <Toggle on={reminder && Boolean(from)} onChange={(v) => setReminder(v)} label="Reminder" />
       </div>

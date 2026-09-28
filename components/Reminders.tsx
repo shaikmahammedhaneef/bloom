@@ -3,7 +3,7 @@
 // app (as a system notification if you've allowed it, otherwise as a banner).
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/client";
-import { nowTime, toKey } from "@/lib/dates";
+import { fmtTime, nowTime, toKey } from "@/lib/dates";
 import { showNotification } from "@/lib/notify";
 import type { Me, TodayData } from "@/lib/types";
 
@@ -47,12 +47,12 @@ export default function Reminders({ me }: { me: Me }) {
       if (r.routine) {
         for (const h of d.habits) {
           if (h.reminder && !h.done && h.startTime === now && once(`bloom-n:${date}:h:${h._id}`)) {
-            notify(h.name, h.endTime ? `Now until ${h.endTime}` : "It's time", show, "/today");
+            notify(h.name, h.endTime ? `Now until ${fmtTime(h.endTime)}` : "It's time", show, "/today");
           }
         }
         for (const t of d.todos) {
           if (t.reminder && !t.done && t.startTime === now && once(`bloom-n:${date}:t:${t._id}`)) {
-            notify(t.title, t.endTime ? `Now until ${t.endTime}` : "It's time", show, "/schedule");
+            notify(t.title, t.endTime ? `Now until ${fmtTime(t.endTime)}` : "It's time", show, "/schedule");
           }
         }
       }

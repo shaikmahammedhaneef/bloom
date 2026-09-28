@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import { useMe } from "@/components/AppShell";
-import { Header, Loading, Stepper, Toast, Toggle } from "@/components/ui";
+import { Header, Loading, Stepper, TimeInput, Toast, Toggle } from "@/components/ui";
 import { api, useToast } from "@/lib/client";
 import { ACCENTS } from "@/lib/catalog";
 import { notifyPermission, requestNotifyPermission, showNotification, type NotifyPermission } from "@/lib/notify";
@@ -121,13 +121,18 @@ export default function ProfilePage() {
             <Toggle on={s.reminders.routine} onChange={(v) => set({ reminders: { ...s.reminders, routine: v } })} label="Routine reminders" />
           </div>
           <div className="row">
-            <div className="grow"><div className="row-title">Mood check-in</div><div className="row-meta">Once a day, if you haven’t checked in</div></div>
-            <input type="time" className="input" style={{ width: 120, minHeight: 40 }} aria-label="Mood reminder time" value={s.reminders.moodTime}
-              onChange={(e) => e.target.value && set({ reminders: { ...s.reminders, moodTime: e.target.value } })} />
+            <div className="grow">
+              <div className="row-title">Mood check-in</div>
+              <div className="row-meta">Once a day, if you haven’t checked in</div>
+              <div style={{ maxWidth: 220, marginTop: 8 }}>
+                <TimeInput label="Mood reminder time" optional={false} value={s.reminders.moodTime}
+                  onChange={(v) => v && set({ reminders: { ...s.reminders, moodTime: v } })} />
+              </div>
+            </div>
             <Toggle on={s.reminders.mood} onChange={(v) => set({ reminders: { ...s.reminders, mood: v } })} label="Mood check-in reminder" />
           </div>
           <div className="row">
-            <div className="grow"><div className="row-title">Streak alerts</div><div className="row-meta">At 20:00 if a streak is at risk</div></div>
+            <div className="grow"><div className="row-title">Streak alerts</div><div className="row-meta">At 8:00 PM if a streak is at risk</div></div>
             <Toggle on={s.reminders.streak} onChange={(v) => set({ reminders: { ...s.reminders, streak: v } })} label="Streak alerts" />
           </div>
         </div>

@@ -183,8 +183,8 @@ export function suggestTemplates(goals: string[]): string[] {
 }
 
 export const CHALLENGES: ChallengeDef[] = [
-  { key: "digital-detox", name: "Digital detox", desc: "Give your evenings back.", task: "Screens off by 21:00", icon: "phone", tone: "honey", days: 7 },
-  { key: "early-riser", name: "Early riser", desc: "Build a steady wake-up time.", task: "Get up by 6:30", icon: "sun", tone: "honey", days: 7 },
+  { key: "digital-detox", name: "Digital detox", desc: "Give your evenings back.", task: "Screens off by 9:00 PM", icon: "phone", tone: "honey", days: 7 },
+  { key: "early-riser", name: "Early riser", desc: "Build a steady wake-up time.", task: "Get up by 6:30 AM", icon: "sun", tone: "honey", days: 7 },
   { key: "hydration-7", name: "7-day hydration", desc: "Make water automatic.", task: "Drink 8 glasses of water", icon: "drop", tone: "sky", days: 7 },
   { key: "no-sugar", name: "No added sugar", desc: "A week without sweet drinks and snacks.", task: "Skip added sugar", icon: "food", tone: "peach", days: 7 },
   { key: "hydration-21", name: "21-day hydration", desc: "Three weeks to lock it in.", task: "Drink 8 glasses of water", icon: "drop", tone: "sky", days: 21 },

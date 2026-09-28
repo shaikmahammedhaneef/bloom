@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import Icon from "./Icon";
 import { MOOD_NAMES } from "@/lib/catalog";
@@ -127,17 +128,52 @@ export function Stepper({ value, onChange, min = 1, max = 100, label }: { value:
   );
 }
 
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 1);
+const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0"));
+
+/** A 12-hour time picker (hour, minute, AM/PM). Reads and writes "HH:mm", or "" for no time. */
+export function TimeInput({ id, value, onChange, label, optional = true }: { id?: string; value: string; onChange: (v: string) => void; label?: string; optional?: boolean }) {
+  const [h24, min] = value ? value.split(":") : ["", ""];
+  const hour = h24 === "" ? "" : String(Number(h24) % 12 || 12);
+  // Remembers AM/PM while no hour is picked yet.
+  const [pickedPm, setPickedPm] = useState(false);
+  const pm = h24 === "" ? pickedPm : Number(h24) >= 12;
+  const minutes = min && !MINUTES.includes(min) ? [...MINUTES, min].sort() : MINUTES;
+
+  function emit(nextHour: string, nextMin: string, nextPm: boolean) {
+    if (!nextHour) return onChange("");
+    const h = (Number(nextHour) % 12) + (nextPm ? 12 : 0);
+    onChange(`${String(h).padStart(2, "0")}:${nextMin || "00"}`);
+  }
+  const name = label ?? "Time";
+  return (
+    <div className="time-input" role="group" aria-label={name}>
+      <select id={id} className="input" aria-label={`${name} hour`} value={hour} onChange={(e) => emit(e.target.value, min, pm)}>
+        {optional && <option value="">--</option>}
+        {HOURS.map((n) => <option key={n} value={n}>{n}</option>)}
+      </select>
+      <span aria-hidden="true">:</span>
+      <select className="input" aria-label={`${name} minute`} value={min || "00"} disabled={!hour} onChange={(e) => emit(hour, e.target.value, pm)}>
+        {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
+      </select>
+      <select className="input" aria-label={`${name} AM or PM`} value={pm ? "PM" : "AM"} onChange={(e) => { const p = e.target.value === "PM"; setPickedPm(p); emit(hour, min, p); }}>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  );
+}
+
 export function TimePair({ from, to, onFrom, onTo, idPrefix }: { from: string; to: string; onFrom: (v: string) => void; onTo: (v: string) => void; idPrefix: string }) {
   return (
     <div className="time-pair">
       <div className="field">
         <label htmlFor={`${idPrefix}-from`}>From</label>
-        <input id={`${idPrefix}-from`} type="time" className="input" value={from} onChange={(e) => onFrom(e.target.value)} />
+        <TimeInput id={`${idPrefix}-from`} label="From" value={from} onChange={onFrom} />
       </div>
-      <span className="dash" aria-hidden="true">–</span>
       <div className="field">
         <label htmlFor={`${idPrefix}-to`}>To</label>
-        <input id={`${idPrefix}-to`} type="time" className="input" value={to} onChange={(e) => onTo(e.target.value)} />
+        <TimeInput id={`${idPrefix}-to`} label="To" value={to} onChange={onTo} />
       </div>
     </div>
   );

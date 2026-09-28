@@ -4,7 +4,7 @@ import Icon from "@/components/Icon";
 import { Bar, Tile } from "@/components/ui";
 import { api } from "@/lib/client";
 import { GOALS, RECHARGE, TEMPLATES, suggestTemplates } from "@/lib/catalog";
-import { toKey } from "@/lib/dates";
+import { fmtTime, timeRange, toKey } from "@/lib/dates";
 import type { Me } from "@/lib/types";
 
 export default function Onboarding() {
@@ -123,14 +123,14 @@ export default function Onboarding() {
                     <Tile icon={t.icon} tone={t.tone} />
                     <div className="grow">
                       <div className="row-title">{t.name}</div>
-                      <div className="row-meta">{t.habits.length} habits, {t.habits[0].startTime} – {t.habits[t.habits.length - 1].endTime}</div>
+                      <div className="row-meta">{t.habits.length} habits, {timeRange(t.habits[0].startTime, t.habits[t.habits.length - 1].endTime)}</div>
                     </div>
                     <button type="button" className="pill" aria-pressed={on} onClick={() => setPicked((p) => (on ? p.filter((x) => x !== t.key) : [...p, t.key]))}>
                       <Icon name={on ? "check" : "plus"} size={16} />{on ? "Added" : "Add"}
                     </button>
                   </div>
                   <div className="hstack">
-                    {t.habits.map((h) => <span key={h.name} className="chip">{h.startTime} {h.name}</span>)}
+                    {t.habits.map((h) => <span key={h.name} className="chip">{fmtTime(h.startTime)} {h.name}</span>)}
                   </div>
                 </div>
               </div>
