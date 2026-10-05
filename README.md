@@ -47,6 +47,16 @@ Open http://localhost:3000 and create an account.
 
 For a production build: `npm run build && npm start`.
 
+## Password reset
+
+- **Change password**: Profile → Password. Works out of the box.
+- **Forgot password?** (on the sign-in page) emails a reset link that works once, for 60 minutes. It needs an email service; Bloom uses [Resend](https://resend.com):
+  1. Create a Resend account. Under **Domains**, add your domain and add the DNS records it shows. Without a domain, you can only send to your own Resend email address, which is fine for testing.
+  2. Under **API Keys**, create a key.
+  3. Set `RESEND_API_KEY`, `EMAIL_FROM` (for example `Bloom <hello@yourdomain.com>`) and, if needed, `APP_URL` (your site's address, used in the link). On Vercel, `APP_URL` defaults to your production domain.
+
+Until those are set, "Forgot password?" says reset by email isn't set up yet.
+
 ## Reminders while Bloom is closed (Web Push)
 
 This is optional. Without it, reminders still work whenever Bloom is open.
@@ -99,6 +109,7 @@ proxy.ts            sends signed-out visitors to /login
 | GET | /api/week?start=&today= | Week overview |
 | GET, POST | /api/mood?date= or ?month= | List or add mood check-ins (several per day) |
 | GET | /api/health/stats?to=&days= | Daily sleep, water, steps and weight for 7, 30, 90 or 365 days |
+| POST | /api/auth/forgot, /api/auth/reset, /api/auth/password | Email a reset link, set a new password from it, or change the password while signed in |
 | PATCH, DELETE | /api/mood/:id | Edit or delete a check-in |
 | GET, POST | /api/journal | Journal entries |
 | GET, POST | /api/challenges?today= | Challenge catalog, or join one |

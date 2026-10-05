@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import Icon from "@/components/Icon";
 import { useMe } from "@/components/AppShell";
+import ChangePassword from "@/components/ChangePassword";
 import { Header, Loading, Stepper, TimeInput, Toast, Toggle } from "@/components/ui";
 import { api, useToast } from "@/lib/client";
 import { ACCENTS } from "@/lib/catalog";
@@ -214,6 +215,14 @@ export default function ProfilePage() {
               <div className="grow"><div className="row-title">{x.label}</div><div className="row-meta">Download as CSV</div></div>
             </a>
           ))}
+        </div>
+      </section>
+
+      <section className="stack" aria-label="Password">
+        <span className="section-title">Password</span>
+        <div className="card">
+          <span className="muted small">Signed in as {me.email}</span>
+          <ChangePassword toast={toast.show} />
         </div>
       </section>
 

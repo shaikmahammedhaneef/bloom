@@ -52,6 +52,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
           <label htmlFor="password">Password</label>
           <input id="password" type="password" className="input" autoComplete={isLogin ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
           {!isLogin && <span className="muted small">At least 8 characters.</span>}
+          {isLogin && <Link href="/forgot-password" className="small" style={{ fontWeight: 600, alignSelf: "flex-end" }}>Forgot password?</Link>}
         </div>
         {error && <div className="error" role="alert">{error}</div>}
         <button className="btn primary block" disabled={busy}>{busy ? "Please wait…" : isLogin ? "Sign in" : "Create account"}</button>

@@ -96,6 +96,13 @@ const PushSubSchema = new Schema(
   opts
 );
 
+// Password reset links. Only a hash of the token is stored; rows expire on their own.
+const PasswordResetSchema = new Schema({
+  userId: { type: ObjectId, required: true, index: true },
+  tokenHash: { type: String, required: true, unique: true },
+  expiresAt: { type: Date, required: true, expires: 0 },
+});
+
 // One row per reminder already sent, so each goes out once. Expires after 3 days.
 const ReminderSentSchema = new Schema({
   key: { type: String, required: true, unique: true },
@@ -170,6 +177,7 @@ export const Habit = make("Habit", HabitSchema);
 export const HabitLog = make("HabitLog", HabitLogSchema);
 export const Todo = make("Todo", TodoSchema);
 export const PushSub = make("PushSub", PushSubSchema);
+export const PasswordReset = make("PasswordReset", PasswordResetSchema);
 export const ReminderSent = make("ReminderSent", ReminderSentSchema);
 export const Mood = make("Mood", MoodSchema);
 export const Journal = make("Journal", JournalSchema);

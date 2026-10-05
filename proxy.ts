@@ -2,9 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE, verifyToken } from "./lib/jwt";
 
 const PUBLIC = ["/login", "/register"];
+// Open whether or not you're signed in.
+const OPEN = ["/forgot-password", "/reset-password"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  if (OPEN.includes(pathname)) return NextResponse.next();
   const token = req.cookies.get(COOKIE)?.value;
   const uid = token ? await verifyToken(token) : null;
   const isPublic = PUBLIC.includes(pathname);
