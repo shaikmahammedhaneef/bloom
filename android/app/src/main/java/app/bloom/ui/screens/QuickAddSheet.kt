@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Notifications
@@ -78,6 +79,7 @@ fun QuickAddSheet(nav: NavHostController, date: String, onDismiss: () -> Unit, o
     var day by remember { mutableStateOf(maxOf(date, today)) }
     var repeat by remember { mutableStateOf("daily") } // habits: daily, weekdays, weekends
     var remind by remember { mutableStateOf(true) }
+    var alarm by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(200); runCatching { focus.requestFocus() } }
 
@@ -92,7 +94,7 @@ fun QuickAddSheet(nav: NavHostController, date: String, onDismiss: () -> Unit, o
             if (kind == "todo") {
                 repo.addTodo(
                     Todo(
-                        title = p.title, date = dayKey, startTime = time, reminder = remind && time.isNotEmpty(),
+                        title = p.title, date = dayKey, startTime = time, reminder = (remind || alarm) && time.isNotEmpty(), alarm = alarm && time.isNotEmpty(),
                         repeat = if (p.weekdays) "days" else if (p.daily) "daily" else "none",
                         days = if (p.weekdays) listOf(1, 2, 3, 4, 5) else emptyList(),
                     ),
@@ -102,7 +104,7 @@ fun QuickAddSheet(nav: NavHostController, date: String, onDismiss: () -> Unit, o
                 val (icon, color) = QuickAdd.guessIcon(p.title)
                 repo.saveHabit(
                     Habit(
-                        name = p.title, icon = icon, color = color, startTime = time, reminder = remind && time.isNotEmpty(),
+                        name = p.title, icon = icon, color = color, startTime = time, reminder = (remind || alarm) && time.isNotEmpty(), alarm = alarm && time.isNotEmpty(),
                         repeat = if (habitRepeat == "daily") "daily" else "days",
                         days = when (habitRepeat) { "weekdays" -> listOf(1, 2, 3, 4, 5); "weekends" -> listOf(0, 6); else -> emptyList() },
                     ),
@@ -140,7 +142,11 @@ fun QuickAddSheet(nav: NavHostController, date: String, onDismiss: () -> Unit, o
                     leadingIcon = { Icon(Icons.Rounded.Schedule, null, Modifier.size(18.dp)) },
                     trailingIcon = if (time.isNotEmpty()) ({ Icon(Icons.Rounded.Close, "Remove time", Modifier.size(18.dp).clickable { pickedTime = "" }) }) else null,
                 )
-                if (time.isNotEmpty()) FilterChip(remind, { remind = !remind }, { Text("Remind me") }, leadingIcon = { Icon(Icons.Rounded.Notifications, null, Modifier.size(18.dp)) })
+                if (time.isNotEmpty()) {
+                    // Remind and Alarm are either/or: an alarm already includes the reminder.
+                    FilterChip(remind && !alarm, { if (alarm) { alarm = false; remind = true } else remind = !remind }, { Text("Remind me") }, leadingIcon = { Icon(Icons.Rounded.Notifications, null, Modifier.size(18.dp)) })
+                    FilterChip(alarm, { alarm = !alarm }, { Text("Alarm") }, leadingIcon = { Icon(Icons.Rounded.Alarm, null, Modifier.size(18.dp)) })
+                }
                 if (kind == "todo") {
                     FilterChip(dayKey == today, { day = today }, { Text("Today") }, enabled = !p.tomorrow)
                     FilterChip(dayKey == Dates.add(today, 1), { day = Dates.add(today, 1) }, { Text("Tomorrow") })

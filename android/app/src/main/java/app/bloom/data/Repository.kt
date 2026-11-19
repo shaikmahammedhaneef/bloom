@@ -32,6 +32,53 @@ class Repository(val dao: BloomDao, val settings: SettingsStore, private val onC
         onChange()
     }
 
+    /** What a habit delete changed, so Undo can put it back exactly. */
+    data class HabitUndo(val habit: Habit, val logs: List<HabitLog>)
+
+    /** "Only this day": takes the habit off that day's schedule. Other days are untouched. */
+    suspend fun skipHabitDay(h: Habit, date: String): HabitUndo {
+        val removed = dao.logsFor(h.id).filter { it.date == date }
+        dao.updateHabit(h.copy(skipDates = (h.skipDates + date).distinct().sorted()))
+        dao.deleteLog(h.id, date)
+        onChange()
+        return HabitUndo(h, removed)
+    }
+
+    /**
+     * "This and all next days": the habit ends the day before `date`. Earlier days keep
+     * their check-offs, streaks and points. If there are no earlier days, it's deleted.
+     */
+    suspend fun endHabitFrom(h: Habit, date: String): HabitUndo {
+        val all = dao.logsFor(h.id)
+        if (date <= h.startDate.ifEmpty { date }) {
+            deleteHabit(h.id)
+            return HabitUndo(h, all)
+        }
+        dao.updateHabit(h.copy(endDate = Dates.add(date, -1), skipDates = h.skipDates.filter { it < date }))
+        dao.deleteLogsFrom(h.id, date)
+        onChange()
+        return HabitUndo(h, all.filter { it.date >= date })
+    }
+
+    /** Removes the habit and all of its history. */
+    suspend fun deleteHabitCompletely(h: Habit): HabitUndo {
+        val all = dao.logsFor(h.id)
+        deleteHabit(h.id)
+        return HabitUndo(h, all)
+    }
+
+    suspend fun undoHabit(u: HabitUndo) {
+        dao.putHabits(listOf(u.habit))
+        dao.putLogs(u.logs)
+        onChange()
+    }
+
+    /** Starts a stopped habit again from today. */
+    suspend fun resumeHabit(h: Habit) {
+        dao.updateHabit(h.copy(endDate = ""))
+        onChange()
+    }
+
     /** Deletes a habit and returns what's needed to bring it back (for Undo). */
     suspend fun deleteHabitUndoable(id: Long): Pair<Habit, List<HabitLog>>? {
         val h = dao.habit(id) ?: return null

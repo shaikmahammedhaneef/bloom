@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Intent
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performImeAction
@@ -27,6 +28,10 @@ import app.bloom.data.Journal
 import app.bloom.data.Mood
 import app.bloom.data.Todo
 import app.bloom.reminders.ActionReceiver
+import app.bloom.reminders.AlarmActivity
+import app.bloom.reminders.AlarmService
+import app.bloom.data.HabitLogic
+import org.robolectric.Robolectric
 import app.bloom.reminders.Reminders
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.github.takahirom.roborazzi.captureScreenRoboImage
@@ -145,6 +150,75 @@ class AppTest {
             compose.waitForIdle()
             compose.onRoot().captureRoboImage("$shots/10-small-habit.png")
         }
+    }
+
+    @Test fun deleteHabitAsksWhichDays() {
+        val dao = app.repo.dao
+        val today = Dates.today()
+        val stretch = runBlocking { dao.habits().first { it.name == "Stretch" } }
+        val water = runBlocking { dao.habits().first { it.name == "Drink water" } }
+        ActivityScenario.launch(MainActivity::class.java).use {
+            compose.waitForIdle()
+            // Swipe left: the row springs back and asks which days.
+            compose.onNodeWithText("Stretch").performTouchInput { swipeLeft() }
+            compose.waitForIdle()
+            captureScreenRoboImage("$shots/11-delete-which-days.png")
+            compose.onNodeWithText("This and all next days").performClick()
+            waitFor("the habit to stop") { runBlocking { dao.habit(stretch.id)?.endDate == Dates.add(today, -1) } }
+            // Earlier days are untouched: all 12 check-offs are still there.
+            assertEquals(12, runBlocking { dao.logsFor(stretch.id).size })
+            compose.waitForIdle()
+            compose.onAllNodesWithText("Stretch").assertCountEquals(0)
+
+            // "Only today" takes just today off. Yesterday's count stays.
+            compose.mainClock.advanceTimeBy(6000)
+            compose.waitForIdle()
+            compose.onNodeWithText("Drink water").performTouchInput { swipeLeft() }
+            compose.waitForIdle()
+            compose.onNodeWithText("Only today").performClick()
+            waitFor("today to be skipped") { runBlocking { today in (dao.habit(water.id)?.skipDates ?: emptyList()) } }
+            val w = runBlocking { dao.habit(water.id)!! }
+            assertEquals("", w.endDate)
+            assertTrue(runBlocking { dao.log(water.id, Dates.add(today, -1)) } != null)
+            assertEquals(null, runBlocking { dao.log(water.id, today) })
+            // Tomorrow it's back on the schedule.
+            assertTrue(HabitLogic.isScheduled(w, Dates.add(today, 1)))
+        }
+    }
+
+    @Test fun alarmRings() = runBlocking {
+        val today = Dates.today()
+        val dao = app.repo.dao
+        val id = dao.insertHabit(Habit(name = "Take medicine", icon = "pulse", startTime = "23:58", reminder = true, alarm = true, startDate = today))
+        // It's scheduled as an alarm.
+        val due = Reminders.upcoming(app, LocalDateTime.of(java.time.LocalDate.now(), LocalTime.of(8, 0))).first { it.refId == id && it.date == today }
+        assertTrue(due.alarm)
+
+        // When it fires, the alarm service starts instead of a quiet notification.
+        val key = "h:$id:$today"
+        Reminders.fire(app, key, "habit", id, today)
+        val started = shadowOf(app).nextStartedService
+        assertEquals(AlarmService::class.java.name, started.component?.className)
+        assertEquals("Take medicine", started.getStringExtra("title"))
+
+        // The service rings, with Done / Snooze / Stop and a full-screen alarm.
+        val svc = Robolectric.buildService(AlarmService::class.java, started).create().startCommand(0, 1)
+        assertEquals("Take medicine", AlarmService.ringing.value?.title)
+        val n = shadowOf(svc.get()).lastForegroundNotification
+        assertEquals(listOf("Done", "Snooze 10 min", "Stop"), n.actions.map { it.title.toString() })
+        assertTrue(n.fullScreenIntent != null)
+
+        // The full-screen alarm page.
+        ActivityScenario.launch<AlarmActivity>(Intent(app, AlarmActivity::class.java).putExtras(started)).use {
+            compose.waitForIdle()
+            compose.onRoot().captureRoboImage("$shots/12-alarm.png")
+            compose.onNodeWithText("Done").performClick()
+        }
+        waitFor("the habit to be done from the alarm") { runBlocking { dao.log(id, today)?.count == 1 } }
+
+        // Stopping ends the ringing.
+        svc.withIntent(Intent(app, AlarmService::class.java).setAction(AlarmService.ACTION_STOP)).startCommand(0, 2)
+        assertEquals(null, AlarmService.ringing.value)
     }
 
     @Test fun reminders() = runBlocking {

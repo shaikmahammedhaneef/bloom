@@ -40,6 +40,8 @@ fun SwipeRow(
     onDone: (() -> Unit)? = null,
     doneLabel: String = "Done",
     deleteLabel: String = "Delete",
+    /** True when onDelete only asks first (opens a dialog): the row springs back instead of sliding away. */
+    asksFirst: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val b = LocalBloom.current
@@ -47,7 +49,7 @@ fun SwipeRow(
     val done by rememberUpdatedState(onDone)
     val state = rememberSwipeToDismissBoxState(confirmValueChange = {
         when (it) {
-            SwipeToDismissBoxValue.EndToStart -> { delete(); true }
+            SwipeToDismissBoxValue.EndToStart -> { delete(); !asksFirst }
             SwipeToDismissBoxValue.StartToEnd -> { done?.invoke(); false }
             else -> false
         }

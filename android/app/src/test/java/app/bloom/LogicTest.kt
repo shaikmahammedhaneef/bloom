@@ -40,6 +40,19 @@ class LogicTest {
         assertEquals(3, HabitLogic.streaks(h, counts, today).current)
     }
 
+    @Test fun skippedAndStoppedDays() {
+        val h = Habit(name = "Read", startDate = "2026-11-01", skipDates = listOf("2026-11-18"), endDate = "2026-11-19")
+        assertTrue(HabitLogic.isScheduled(h, "2026-11-17"))
+        assertFalse(HabitLogic.isScheduled(h, "2026-11-18")) // only that day removed
+        assertTrue(HabitLogic.isScheduled(h, "2026-11-19")) // last day
+        assertFalse(HabitLogic.isScheduled(h, "2026-11-20")) // stopped after
+        // A skipped day doesn't break the streak.
+        val counts = mapOf("2026-11-16" to 1, "2026-11-17" to 1, "2026-11-19" to 1)
+        assertEquals(3, HabitLogic.streaks(h, counts, "2026-11-19").current)
+        assertTrue(HabitLogic.ended(h, "2026-11-20"))
+        assertFalse(HabitLogic.ended(h, "2026-11-19"))
+    }
+
     @Test fun goalCounts() {
         val h = Habit(name = "Water", goal = 8, unit = "glasses")
         assertFalse(HabitLogic.doneOn(h, mapOf(today to 7), today))

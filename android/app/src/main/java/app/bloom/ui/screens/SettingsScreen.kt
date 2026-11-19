@@ -49,7 +49,10 @@ import androidx.navigation.NavHostController
 import app.bloom.data.Backup
 import app.bloom.data.Catalog
 import app.bloom.data.Dates
+import app.bloom.reminders.AlarmService
 import app.bloom.reminders.Reminders
+import app.bloom.ui.components.AlarmPermissionNote
+import app.bloom.ui.components.AlarmToneRow
 import app.bloom.reminders.test
 import app.bloom.ui.components.BloomCard
 import app.bloom.ui.components.ChoiceChips
@@ -149,6 +152,23 @@ fun SettingsScreen(nav: NavHostController) {
                 Muted("Snooze for")
                 ChoiceChips(listOf(5, 10, 15, 30).map { it to "$it min" }, { it == s.snoozeMinutes }) { v -> update { it.copy(snoozeMinutes = v) } }
                 TextButton(onClick = { Reminders.test(ctx); msg = if (canNotify) "A test notification was sent." else "Allow notifications first." }) { Text("Send a test notification") }
+            }
+        }
+
+        item { SectionTitle("Alarms") }
+        item {
+            BloomCard {
+                Muted("Turn on “Ring as an alarm” for any habit or to-do with a time. It rings with a sound and vibration, on the lock screen too, until you tap Done, Snooze or Stop.")
+                AlarmToneRow("Default alarm sound", s.alarmTone, "Phone's default alarm") { v -> update { it.copy(alarmTone = v) } }
+                Toggle("Vibrate", "Vibrate while the alarm rings", s.alarmVibrate) { v -> update { it.copy(alarmVibrate = v) } }
+                Muted("Stop ringing after")
+                ChoiceChips(listOf(1, 3, 5, 10).map { it to "$it min" }, { it == s.alarmMinutes }) { v -> update { it.copy(alarmMinutes = v) } }
+                AlarmPermissionNote()
+                TextButton(onClick = {
+                    msg = if (!Reminders.canNotify(ctx)) "Allow notifications first."
+                    else if (AlarmService.start(ctx, AlarmService.Alarm("test", "test", 0, Dates.today(), "Test alarm", "This is how your alarms ring.", s.alarmTone))) null
+                    else "Android didn't let the alarm start. Try again with Bloom open."
+                }) { Text("Try the alarm") }
             }
         }
 

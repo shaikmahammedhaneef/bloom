@@ -1,5 +1,6 @@
 package app.bloom.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -28,6 +29,14 @@ data class Habit(
     val reminder: Boolean = false,
     val startDate: String = "",
     val createdAt: Long = System.currentTimeMillis(),
+    /** Days taken off the schedule with "delete only this day". */
+    @ColumnInfo(defaultValue = "[]") val skipDates: List<String> = emptyList(),
+    /** Last day of the habit after "delete this and all next days". Earlier days keep their history. */
+    @ColumnInfo(defaultValue = "") val endDate: String = "",
+    /** Ring as an alarm (sound, vibration, full screen) instead of a quiet notification. */
+    @ColumnInfo(defaultValue = "0") val alarm: Boolean = false,
+    /** Ringtone URI for the alarm. Empty means the default alarm sound from Settings. */
+    @ColumnInfo(defaultValue = "") val alarmTone: String = "",
 )
 
 @Entity(tableName = "habit_logs", primaryKeys = ["habitId", "date"], indices = [Index("date")])
@@ -52,6 +61,8 @@ data class Todo(
     val doneDates: List<String> = emptyList(),
     val skipDates: List<String> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0") val alarm: Boolean = false,
+    @ColumnInfo(defaultValue = "") val alarmTone: String = "",
 )
 
 @Entity(tableName = "moods", indices = [Index("date")])

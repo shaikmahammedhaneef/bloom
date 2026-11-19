@@ -21,12 +21,14 @@ object Backup {
             put("accent", s.accent); put("theme", s.theme); put("waterGoal", s.waterGoal); put("stepGoal", s.stepGoal)
             put("remindRoutine", s.remindRoutine); put("remindMood", s.remindMood); put("moodTime", s.moodTime)
             put("remindStreak", s.remindStreak); put("streakTime", s.streakTime)
+            put("alarmVibrate", s.alarmVibrate); put("alarmMinutes", s.alarmMinutes)
         })
         o.put("habits", JSONArray(dao.habits().map { h ->
             JSONObject().apply {
                 put("id", h.id); put("name", h.name); put("icon", h.icon); put("color", h.color); put("category", h.category)
                 put("startTime", h.startTime); put("endTime", h.endTime); put("repeat", h.repeat); put("timesPerWeek", h.timesPerWeek)
                 put("days", ints(h.days)); put("goal", h.goal); put("unit", h.unit); put("reminder", h.reminder); put("startDate", h.startDate); put("createdAt", h.createdAt)
+                put("skipDates", strs(h.skipDates)); put("endDate", h.endDate); put("alarm", h.alarm); put("alarmTone", h.alarmTone)
             }
         }))
         o.put("habitLogs", JSONArray(dao.allLogs().map { JSONObject().put("habitId", it.habitId).put("date", it.date).put("count", it.count) }))
@@ -34,6 +36,7 @@ object Backup {
             JSONObject().apply {
                 put("id", t.id); put("title", t.title); put("date", t.date); put("endDate", t.endDate); put("startTime", t.startTime); put("endTime", t.endTime)
                 put("done", t.done); put("reminder", t.reminder); put("repeat", t.repeat); put("days", ints(t.days)); put("doneDates", strs(t.doneDates)); put("skipDates", strs(t.skipDates)); put("createdAt", t.createdAt)
+                put("alarm", t.alarm); put("alarmTone", t.alarmTone)
             }
         }))
         o.put("moods", JSONArray(dao.moods().map { m ->
@@ -55,12 +58,14 @@ object Backup {
         val habits = o.optJSONArray("habits").map {
             Habit(it.getLong("id"), it.getString("name"), it.optString("icon", "check"), it.optString("color", "sage"), it.optString("category", "health"),
                 it.optString("startTime"), it.optString("endTime"), it.optString("repeat", "daily"), it.optInt("timesPerWeek", 3), it.ints("days"),
-                it.optInt("goal", 1), it.optString("unit"), it.optBoolean("reminder"), it.optString("startDate"), it.optLong("createdAt"))
+                it.optInt("goal", 1), it.optString("unit"), it.optBoolean("reminder"), it.optString("startDate"), it.optLong("createdAt"),
+                it.strs("skipDates"), it.optString("endDate"), it.optBoolean("alarm"), it.optString("alarmTone"))
         }
         val logs = o.optJSONArray("habitLogs").map { HabitLog(it.getLong("habitId"), it.getString("date"), it.getInt("count")) }
         val todos = o.optJSONArray("todos").map {
             Todo(it.getLong("id"), it.getString("title"), it.getString("date"), it.optString("endDate"), it.optString("startTime"), it.optString("endTime"),
-                it.optBoolean("done"), it.optBoolean("reminder"), it.optString("repeat", "none"), it.ints("days"), it.strs("doneDates"), it.strs("skipDates"), it.optLong("createdAt"))
+                it.optBoolean("done"), it.optBoolean("reminder"), it.optString("repeat", "none"), it.ints("days"), it.strs("doneDates"), it.strs("skipDates"), it.optLong("createdAt"),
+                it.optBoolean("alarm"), it.optString("alarmTone"))
         }
         val moods = o.optJSONArray("moods").map { Mood(it.getLong("id"), it.getString("date"), it.optString("time"), it.getInt("level"), it.strs("emotions"), it.strs("triggers"), it.optString("note")) }
         val journal = o.optJSONArray("journal").map { Journal(it.getString("date"), it.optString("prompt"), it.optString("text"), it.strs("gratitude")) }
@@ -80,6 +85,7 @@ object Backup {
                     accent = s.optString("accent", it.accent), theme = s.optString("theme", it.theme), waterGoal = s.optInt("waterGoal", it.waterGoal), stepGoal = s.optInt("stepGoal", it.stepGoal),
                     remindRoutine = s.optBoolean("remindRoutine", it.remindRoutine), remindMood = s.optBoolean("remindMood", it.remindMood), moodTime = s.optString("moodTime", it.moodTime),
                     remindStreak = s.optBoolean("remindStreak", it.remindStreak), streakTime = s.optString("streakTime", it.streakTime),
+                    alarmVibrate = s.optBoolean("alarmVibrate", it.alarmVibrate), alarmMinutes = s.optInt("alarmMinutes", it.alarmMinutes),
                 )
             }
         }

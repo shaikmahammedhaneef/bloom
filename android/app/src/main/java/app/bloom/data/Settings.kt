@@ -24,6 +24,11 @@ data class Settings(
     val remindStreak: Boolean = true,
     val streakTime: String = "20:00",
     val snoozeMinutes: Int = 10,
+    /** Default alarm sound (a ringtone URI). Empty means the phone's default alarm sound. */
+    val alarmTone: String = "",
+    val alarmVibrate: Boolean = true,
+    /** How long an alarm rings before it stops by itself. */
+    val alarmMinutes: Int = 3,
 )
 
 class SettingsStore(context: Context) {
@@ -50,6 +55,9 @@ class SettingsStore(context: Context) {
             remindStreak = prefs.getBoolean("remindStreak", d.remindStreak),
             streakTime = prefs.getString("streakTime", d.streakTime)!!,
             snoozeMinutes = prefs.getInt("snoozeMinutes", d.snoozeMinutes),
+            alarmTone = prefs.getString("alarmTone", d.alarmTone)!!,
+            alarmVibrate = prefs.getBoolean("alarmVibrate", d.alarmVibrate),
+            alarmMinutes = prefs.getInt("alarmMinutes", d.alarmMinutes),
         )
     }
 
@@ -71,6 +79,9 @@ class SettingsStore(context: Context) {
             .putBoolean("remindStreak", s.remindStreak)
             .putString("streakTime", s.streakTime)
             .putInt("snoozeMinutes", s.snoozeMinutes)
+            .putString("alarmTone", s.alarmTone)
+            .putBoolean("alarmVibrate", s.alarmVibrate)
+            .putInt("alarmMinutes", s.alarmMinutes)
             .apply()
         state.value = s
     }

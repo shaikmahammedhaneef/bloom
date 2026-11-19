@@ -34,18 +34,27 @@ import java.time.ZoneId
 object Reminders {
     const val CH_ROUTINE = "routine"
     const val CH_CHECKIN = "checkin"
+    const val CH_ALARM = "alarm"
     const val ACTION_REMIND = "app.bloom.REMIND"
     const val ACTION_ROLLOVER = "app.bloom.ROLLOVER"
     private const val PREFS = "bloom_alarms"
 
-    /** One reminder. kind is "habit", "todo", "mood" or "streak". */
-    data class Due(val key: String, val at: LocalDateTime, val kind: String, val refId: Long, val date: String)
+    /** One reminder. kind is "habit", "todo", "mood" or "streak". `alarm` rings instead of a quiet notification. */
+    data class Due(val key: String, val at: LocalDateTime, val kind: String, val refId: Long, val date: String, val alarm: Boolean = false)
 
     fun createChannels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
             NotificationChannel(CH_ROUTINE, "Habit and to-do reminders", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "At the 'from' time of habits and to-dos that have a reminder"
+            },
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_ALARM, "Alarms", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Habits and to-dos set to ring as an alarm"
+                // Bloom plays the alarm sound itself, so the channel stays silent.
+                setSound(null, null)
+                enableVibration(false)
             },
         )
         nm.createNotificationChannel(
@@ -76,13 +85,13 @@ object Reminders {
             fun at(t: String) = LocalDateTime.of(LocalDate.parse(date), LocalTime.parse(t))
             if (s.remindRoutine) {
                 for (h in habits) {
-                    if (!h.reminder || h.startTime.isEmpty() || !HabitLogic.isScheduled(h, date)) continue
+                    if (!(h.reminder || h.alarm) || h.startTime.isEmpty() || !HabitLogic.isScheduled(h, date)) continue
                     if (HabitLogic.doneOn(h, counts[h.id] ?: emptyMap(), date)) continue
-                    out += Due("h:${h.id}:$date", at(h.startTime), "habit", h.id, date)
+                    out += Due("h:${h.id}:$date", at(h.startTime), "habit", h.id, date, h.alarm)
                 }
                 for (t in todos) {
-                    if (!t.reminder || t.startTime.isEmpty() || !TodoLogic.occursOn(t, date) || TodoLogic.doneOn(t, date)) continue
-                    out += Due("t:${t.id}:$date", at(t.startTime), "todo", t.id, date)
+                    if (!(t.reminder || t.alarm) || t.startTime.isEmpty() || !TodoLogic.occursOn(t, date) || TodoLogic.doneOn(t, date)) continue
+                    out += Due("t:${t.id}:$date", at(t.startTime), "todo", t.id, date, t.alarm)
                 }
             }
             if (s.remindMood && !(date == today && dao.moodCount(date) > 0)) out += Due("m:$date", at(s.moodTime), "mood", 0, date)
@@ -92,9 +101,11 @@ object Reminders {
     }
 
     @SuppressLint("ScheduleExactAlarm")
-    private fun setAlarm(ctx: Context, atMillis: Long, pi: PendingIntent) {
+    private fun setAlarm(ctx: Context, atMillis: Long, pi: PendingIntent, alarmClock: Boolean = false) {
         val am = ctx.getSystemService(AlarmManager::class.java)
-        if (canExact(ctx)) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMillis, pi)
+        // Alarm-clock alarms show the alarm icon in the status bar and are never delayed by battery saving.
+        if (alarmClock && canExact(ctx)) am.setAlarmClock(AlarmManager.AlarmClockInfo(atMillis, openApp(ctx, "today", 3)), pi)
+        else if (canExact(ctx)) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMillis, pi)
         // Without the exact-alarm permission Android may deliver a few minutes late.
         else am.setWindow(AlarmManager.RTC_WAKEUP, atMillis, 5 * 60_000L, pi)
     }
@@ -116,7 +127,7 @@ object Reminders {
             am.cancel(alarmIntent(app, key, kind, refId.toLong(), date))
         }
         val due = upcoming(app)
-        for (d in due) setAlarm(app, millis(d.at), alarmIntent(app, d.key, d.kind, d.refId, d.date))
+        for (d in due) setAlarm(app, millis(d.at), alarmIntent(app, d.key, d.kind, d.refId, d.date), alarmClock = d.alarm)
         prefs.edit().putStringSet("keys", due.map { "${it.key}|${it.kind}|${it.refId}|${it.date}" }.toSet()).apply()
 
         // Just after midnight, roll the schedule forward a day.
@@ -127,9 +138,30 @@ object Reminders {
         am.set(AlarmManager.RTC_WAKEUP, millis(LocalDate.now().plusDays(1).atTime(0, 1)), roll)
     }
 
-    fun snooze(ctx: Context, key: String, kind: String, refId: Long, date: String, minutes: Int) {
-        setAlarm(ctx, System.currentTimeMillis() + minutes * 60_000L, alarmIntent(ctx, "z:$key", kind, refId, date))
+    fun snooze(ctx: Context, key: String, kind: String, refId: Long, date: String, minutes: Int, alarm: Boolean = false) {
+        setAlarm(ctx, System.currentTimeMillis() + minutes * 60_000L, alarmIntent(ctx, "z:$key", kind, refId, date), alarmClock = alarm)
     }
+
+    /** The ongoing notification while an alarm rings. On a locked phone it opens the full-screen alarm. */
+    fun alarmNotification(ctx: Context, a: AlarmService.Alarm): android.app.Notification {
+        val full = PendingIntent.getActivity(
+            ctx, 4242, Intent(ctx, AlarmActivity::class.java).putExtras(a.toIntent(ctx)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val s = (ctx.applicationContext as BloomApp).settings.value
+        val b = NotificationCompat.Builder(ctx, CH_ALARM).setSmallIcon(R.drawable.ic_stat_bloom)
+            .setContentTitle(a.title).setContentText(a.body.ifBlank { "Alarm" })
+            .setCategory(NotificationCompat.CATEGORY_ALARM).setPriority(NotificationCompat.PRIORITY_MAX)
+            .setOngoing(true).setFullScreenIntent(full, true).setContentIntent(full)
+        if (a.kind == "habit" || a.kind == "todo") b.addAction(0, "Done", action(ctx, "DONE", a.key, a.kind, a.refId, a.date))
+        if (a.kind != "test") b.addAction(0, "Snooze ${s.snoozeMinutes} min", action(ctx, "SNOOZE", a.key, a.kind, a.refId, a.date))
+        b.addAction(0, "Stop", action(ctx, "DISMISS", a.key, a.kind, a.refId, a.date))
+        return b.build()
+    }
+
+    /** Whether Android lets Bloom show the alarm full screen on a locked phone (Android 14+ asks). */
+    fun canFullScreen(ctx: Context): Boolean =
+        Build.VERSION.SDK_INT < 34 || ctx.getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
 
     fun openApp(ctx: Context, route: String, code: Int): PendingIntent =
         PendingIntent.getActivity(
@@ -146,9 +178,15 @@ object Reminders {
 
     fun notificationId(key: String) = key.removePrefix("z:").hashCode()
 
+    /** Starts the ringing alarm. False if Android blocked it, so a normal notification is shown instead. */
+    private fun ring(app: BloomApp, a: AlarmService.Alarm): Boolean {
+        NotificationManagerCompat.from(app).cancel(notificationId(a.key))
+        return AlarmService.start(app, a)
+    }
+
     /** Checks the reminder still applies and shows it. */
     @SuppressLint("MissingPermission")
-    suspend fun fire(app: BloomApp, key: String, kind: String, refId: Long, date: String, quiet: Boolean = false) {
+    suspend fun fire(app: BloomApp, key: String, kind: String, refId: Long, date: String, quiet: Boolean = false, missed: Boolean = false) {
         if (!canNotify(app)) return
         val dao = app.repo.dao
         val s = app.settings.value
@@ -160,9 +198,10 @@ object Reminders {
                 val count = dao.log(h.id, date)?.count ?: 0
                 if (count >= maxOf(1, h.goal)) return
                 val body = buildString {
-                    append(if (h.endTime.isNotEmpty()) "Now until ${Dates.fmtTime(h.endTime)}" else "It's time")
+                    append(if (missed) "Missed alarm" else if (h.endTime.isNotEmpty()) "Now until ${Dates.fmtTime(h.endTime)}" else "It's time")
                     if (h.goal > 1) append(" · $count of ${h.goal} ${h.unit}".trimEnd())
                 }
+                if (h.alarm && !missed && ring(app, AlarmService.Alarm(key, kind, refId, date, h.name, body, h.alarmTone.ifBlank { s.alarmTone }))) return
                 b = NotificationCompat.Builder(app, CH_ROUTINE).setContentTitle(h.name).setContentText(body)
                     .setContentIntent(openApp(app, "today", id))
                 if (h.goal > 1) b.addAction(0, "+1", action(app, "PLUS", key, kind, refId, date))
@@ -172,8 +211,10 @@ object Reminders {
             "todo" -> {
                 val t = dao.todo(refId) ?: return
                 if (!TodoLogic.occursOn(t, date) || TodoLogic.doneOn(t, date)) return
+                val body = if (missed) "Missed alarm" else if (t.endTime.isNotEmpty()) "Now until ${Dates.fmtTime(t.endTime)}" else "It's time"
+                if (t.alarm && !missed && ring(app, AlarmService.Alarm(key, kind, refId, date, t.title, body, t.alarmTone.ifBlank { s.alarmTone }))) return
                 b = NotificationCompat.Builder(app, CH_ROUTINE).setContentTitle(t.title)
-                    .setContentText(if (t.endTime.isNotEmpty()) "Now until ${Dates.fmtTime(t.endTime)}" else "It's time")
+                    .setContentText(body)
                     .setContentIntent(openApp(app, "today", id))
                     .addAction(0, "Done", action(app, "DONE", key, kind, refId, date))
                     .addAction(0, "Snooze ${s.snoozeMinutes} min", action(app, "SNOOZE", key, kind, refId, date))

@@ -12,6 +12,8 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.Update
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -34,6 +36,8 @@ interface BloomDao {
     @Upsert suspend fun upsertLog(l: HabitLog)
     @Query("DELETE FROM habit_logs WHERE habitId = :id") suspend fun deleteLogs(id: Long)
     @Query("SELECT * FROM habit_logs WHERE habitId = :id") suspend fun logsFor(id: Long): List<HabitLog>
+    @Query("DELETE FROM habit_logs WHERE habitId = :id AND date >= :from") suspend fun deleteLogsFrom(id: Long, from: String)
+    @Query("DELETE FROM habit_logs WHERE habitId = :id AND date = :date") suspend fun deleteLog(id: Long, date: String)
 
     // To-dos
     @Query("SELECT * FROM todos ORDER BY createdAt") fun todosFlow(): Flow<List<Todo>>
@@ -98,7 +102,7 @@ interface BloomDao {
 
 @Database(
     entities = [Habit::class, HabitLog::class, Todo::class, Mood::class, Journal::class, Health::class, FocusSession::class, UserChallenge::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -109,7 +113,21 @@ abstract class BloomDb : RoomDatabase() {
         @Volatile private var instance: BloomDb? = null
 
         fun get(context: Context): BloomDb = instance ?: synchronized(this) {
-            instance ?: Room.databaseBuilder(context.applicationContext, BloomDb::class.java, "bloom.db").build().also { instance = it }
+            instance ?: Room.databaseBuilder(context.applicationContext, BloomDb::class.java, "bloom.db")
+                .addMigrations(MIGRATION_1_2)
+                .build().also { instance = it }
+        }
+
+        /** 1.1 → 1.2: per-day habit deletes, stopping a habit from a day on, and alarms. Keeps all existing data. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE habits ADD COLUMN skipDates TEXT NOT NULL DEFAULT '[]'")
+                db.execSQL("ALTER TABLE habits ADD COLUMN endDate TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE habits ADD COLUMN alarm INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE habits ADD COLUMN alarmTone TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE todos ADD COLUMN alarm INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE todos ADD COLUMN alarmTone TEXT NOT NULL DEFAULT ''")
+            }
         }
     }
 }

@@ -7,6 +7,8 @@ typealias Counts = Map<String, Int>
 object HabitLogic {
     fun isScheduled(h: Habit, key: String): Boolean {
         if (h.startDate.isNotEmpty() && key < h.startDate) return false
+        if (h.endDate.isNotEmpty() && key > h.endDate) return false
+        if (key in h.skipDates) return false
         if (h.repeat == "days") return h.days.contains(Dates.dow(key))
         return true
     }
@@ -99,6 +101,9 @@ object HabitLogic {
         }
         return if (scheduled > 0) Math.round(done * 100f / scheduled) else null
     }
+
+    /** Stopped with "delete this and all next days" before `today`. */
+    fun ended(h: Habit, today: String) = h.endDate.isNotEmpty() && h.endDate < today
 
     fun repeatLabel(h: Habit): String = when (h.repeat) {
         "daily" -> "Every day"

@@ -22,6 +22,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Remove
@@ -119,6 +120,7 @@ fun TodayScreen(nav: NavHostController) {
     val moods by remember(date) { repo.moodsOn(date) }.collectAsStateWithLifecycle(emptyList())
     var points by remember { mutableIntStateOf(0) }
     var adding by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<Habit?>(null) }
     LaunchedEffect(logs, moods) { points = repo.points() }
 
     val counts = remember(logs) { countsByHabit(logs) }
@@ -131,6 +133,7 @@ fun TodayScreen(nav: NavHostController) {
     val pct = if (total == 0) 0 else doneCount * 100 / total
     val mood = bestByDate(moods)[date]
 
+    deleting?.let { HabitDeleteDialog(it, date, snack, onDismiss = { deleting = null }) }
     if (adding) QuickAddSheet(nav, date, onDismiss = { adding = false }) { msg -> scope.launch { snack.showSnackbar(msg) } }
 
     val title = when (date) {
@@ -198,7 +201,7 @@ fun TodayScreen(nav: NavHostController) {
             item(key = "h-$part") { SectionTitle(part.replaceFirstChar { it.uppercase() }) }
             items(list, key = { if (it is HabitItem) "h${it.d.habit.id}" else "t${(it as TodoItem).t.id}" }) {
                 when (it) {
-                    is HabitItem -> HabitCard(it.d, date, nav, snack)
+                    is HabitItem -> HabitCard(it.d, date, nav) { deleting = it.d.habit }
                     is TodoItem -> TodoCard(it, date, nav, snack)
                 }
             }
@@ -268,19 +271,15 @@ private suspend fun undoable(snack: SnackbarHostState, msg: String, undo: suspen
 }
 
 @Composable
-fun HabitCard(d: HabitDay, date: String, nav: NavHostController, snack: SnackbarHostState) {
-    val app = bloomApp()
-    val repo = app.repo
+fun HabitCard(d: HabitDay, date: String, nav: NavHostController, onAskDelete: () -> Unit) {
+    val repo = bloomApp().repo
     val scope = rememberCoroutineScope()
     val h = d.habit
     val b = LocalBloom.current
     SwipeRow(
-        onDelete = {
-            app.scope.launch {
-                val saved = repo.deleteHabitUndoable(h.id) ?: return@launch
-                undoable(snack, "Deleted habit “${h.name}”") { repo.restoreHabit(saved) }
-            }
-        },
+        // Asks "only this day" or "this and all next days" first.
+        onDelete = onAskDelete,
+        asksFirst = true,
         onDone = { scope.launch { repo.toggleHabit(h, date, d.count) } },
         doneLabel = if (d.done) "Not done" else "Done",
     ) {
@@ -294,7 +293,7 @@ fun HabitCard(d: HabitDay, date: String, nav: NavHostController, snack: Snackbar
                         textDecoration = if (d.done) TextDecoration.LineThrough else null, color = if (d.done) b.muted else b.ink,
                     )
                     val sub = listOfNotNull(
-                        Dates.timeRange(h.startTime, h.endTime).ifEmpty { null },
+                        Dates.timeRange(h.startTime, h.endTime).ifEmpty { null }?.let { if (h.alarm) "⏰ $it" else it },
                         if (h.repeat == "weekly") "${d.weekDone}/${h.timesPerWeek} this week" else null,
                         if (h.goal > 1) "${d.count}/${h.goal} ${h.unit}".trim() else null,
                     ).joinToString(" · ")
@@ -350,7 +349,8 @@ private fun TodoCard(it: TodoItem, date: String, nav: NavHostController, snack: 
                     ).joinToString(" · ")
                     if (sub.isNotEmpty()) Muted(sub)
                 }
-                if (t.reminder && t.startTime.isNotEmpty() && !it.done) Icon(Icons.Rounded.Notifications, "Reminder on", tint = b.muted, modifier = Modifier.size(16.dp).padding(end = 2.dp))
+                if (t.alarm && t.startTime.isNotEmpty() && !it.done) Icon(Icons.Rounded.Alarm, "Alarm on", tint = b.muted, modifier = Modifier.size(16.dp).padding(end = 2.dp))
+                else if (t.reminder && t.startTime.isNotEmpty() && !it.done) Icon(Icons.Rounded.Notifications, "Reminder on", tint = b.muted, modifier = Modifier.size(16.dp).padding(end = 2.dp))
                 Spacer(Modifier.width(8.dp))
             }
         }

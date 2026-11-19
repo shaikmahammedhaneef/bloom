@@ -47,6 +47,10 @@ class ActionReceiver : BroadcastReceiver() {
         val nm = NotificationManagerCompat.from(app)
         val repo = app.repo
         val dao = repo.dao
+        // Answering the alarm that's ringing stops the sound.
+        val ringing = AlarmService.ringing.value
+        val wasAlarm = ringing != null && ringing.key.removePrefix("z:") == key.removePrefix("z:")
+        if (wasAlarm) AlarmService.stop(app)
         when (intent.action) {
             "app.bloom.DONE" -> {
                 if (kind == "habit") dao.habit(refId)?.let { repo.setCount(it, date, maxOf(1, it.goal)) }
@@ -63,8 +67,9 @@ class ActionReceiver : BroadcastReceiver() {
             }
             "app.bloom.SNOOZE" -> {
                 nm.cancel(Reminders.notificationId(key))
-                Reminders.snooze(app, key.removePrefix("z:"), kind, refId, date, app.settings.value.snoozeMinutes)
+                Reminders.snooze(app, key.removePrefix("z:"), kind, refId, date, app.settings.value.snoozeMinutes, alarm = wasAlarm)
             }
+            "app.bloom.DISMISS" -> nm.cancel(Reminders.notificationId(key))
             "app.bloom.MOOD" -> {
                 val level = intent.getIntExtra("extra", 0)
                 if (level in 1..5) repo.saveMood(Mood(date = date, time = if (date == Dates.today()) Dates.nowTime() else "21:00", level = level))

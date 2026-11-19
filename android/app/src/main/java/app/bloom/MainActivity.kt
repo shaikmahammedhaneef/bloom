@@ -21,7 +21,12 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -51,6 +56,9 @@ import app.bloom.ui.screens.TodayScreen
 import app.bloom.ui.screens.TodoFormScreen
 import app.bloom.ui.theme.BloomTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+
+/** Messages that must outlive the screen that sent them, like Undo after deleting from a page you then leave. */
+val LocalAppSnack = staticCompositionLocalOf { SnackbarHostState() }
 
 class MainActivity : ComponentActivity() {
     /** A screen to open, from a tapped notification. */
@@ -109,7 +117,10 @@ private fun BloomNav(openRoute: MutableStateFlow<String?>) {
 
     // The bottom bar shows on the five main tabs only; forms and details get the full height.
     val onTab = TABS.any { it.route == current }
+    val appSnack = remember { SnackbarHostState() }
+    CompositionLocalProvider(LocalAppSnack provides appSnack) {
     Scaffold(
+        snackbarHost = { SnackbarHost(appSnack) },
         // Each screen handles the status bar and keyboard itself, so this outer one adds no padding of its own.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
@@ -149,5 +160,6 @@ private fun BloomNav(openRoute: MutableStateFlow<String?>) {
             composable("progress") { ProgressScreen(nav) }
             composable("challenges") { ChallengesScreen(nav) }
         }
+    }
     }
 }

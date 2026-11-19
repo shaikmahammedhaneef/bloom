@@ -65,6 +65,7 @@ import app.bloom.data.Catalog
 import app.bloom.data.Dates
 import app.bloom.data.Habit
 import app.bloom.data.HabitLogic
+import app.bloom.LocalAppSnack
 import app.bloom.data.QuickAdd
 import app.bloom.data.countsByHabit
 import app.bloom.data.habitDay
@@ -82,6 +83,11 @@ import app.bloom.ui.components.rememberSnackbar
 import app.bloom.ui.components.TimeField
 import app.bloom.ui.components.ToneIcon
 import app.bloom.ui.components.iconFor
+import app.bloom.ui.components.toneName
+import app.bloom.ui.components.AlarmToneRow
+import app.bloom.ui.components.AlarmPermissionNote
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.ui.draw.alpha
 import app.bloom.ui.theme.LocalBloom
 import kotlinx.coroutines.launch
 
@@ -97,6 +103,8 @@ fun HabitsScreen(nav: NavHostController) {
     val app = bloomApp()
     val scope = rememberCoroutineScope()
     val snack = rememberSnackbar()
+    var deleting by remember { mutableStateOf<Habit?>(null) }
+    deleting?.let { HabitDeleteDialog(it, today, snack, allowFull = true, onDismiss = { deleting = null }) }
 
     Screen(
         title = "Habits",
@@ -105,7 +113,9 @@ fun HabitsScreen(nav: NavHostController) {
         fab = { FloatingActionButton(onClick = { nav.navigate("habitForm/0") }) { Icon(Icons.Rounded.Add, "New habit") } },
     ) {
         item { ChoiceChips(listOf("all" to "All") + Catalog.CATEGORIES.map { it.key to it.name }, { it == cat }) { cat = it } }
-        val list = habits.filter { cat == "all" || it.category == cat }.sortedWith { x, y -> HabitLogic.byTime(x.startTime, y.startTime) }
+        val all = habits.filter { cat == "all" || it.category == cat }.sortedWith { x, y -> HabitLogic.byTime(x.startTime, y.startTime) }
+        val list = all.filter { !HabitLogic.ended(it, today) }
+        val stopped = all.filter { HabitLogic.ended(it, today) }
         if (list.isEmpty()) item {
             BloomCard {
                 Text("No habits yet", style = MaterialTheme.typography.titleMedium)
@@ -118,13 +128,8 @@ fun HabitsScreen(nav: NavHostController) {
             val d = habitDay(h, c, today)
             val rate = HabitLogic.completionRate(h, c, today)
             SwipeRow(
-                onDelete = {
-                    app.scope.launch {
-                        val saved = repo.deleteHabitUndoable(h.id) ?: return@launch
-                        snack.currentSnackbarData?.dismiss()
-                        if (snack.showSnackbar("Deleted “${h.name}”", "Undo", withDismissAction = true) == SnackbarResult.ActionPerformed) repo.restoreHabit(saved)
-                    }
-                },
+                onDelete = { deleting = h },
+                asksFirst = true,
                 onDone = if (d.scheduled) ({ scope.launch { repo.toggleHabit(h, today, d.count) } }) else null,
                 doneLabel = if (d.done) "Not done today" else "Done today",
             ) {
@@ -136,12 +141,31 @@ fun HabitsScreen(nav: NavHostController) {
                         Text(h.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Muted(listOfNotNull(HabitLogic.repeatLabel(h), Dates.timeRange(h.startTime, h.endTime).ifEmpty { null }, rate?.let { "$it% in 30 days" }).joinToString(" · "))
                     }
-                    if (h.reminder && h.startTime.isNotEmpty()) Icon(Icons.Rounded.NotificationsActive, "Reminder on", tint = b.muted, modifier = Modifier.size(18.dp))
+                    if (h.alarm && h.startTime.isNotEmpty()) Icon(Icons.Rounded.Alarm, "Alarm on", tint = b.muted, modifier = Modifier.size(18.dp))
+                    else if (h.reminder && h.startTime.isNotEmpty()) Icon(Icons.Rounded.NotificationsActive, "Reminder on", tint = b.muted, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Icon(Icons.Rounded.LocalFireDepartment, null, tint = b.toneFg("peach"), modifier = Modifier.size(18.dp))
                     Text("${d.streak}${if (d.streakUnit == "week") "w" else ""}", fontSize = 13.sp)
                 }
             }
+            }
+        }
+        if (stopped.isNotEmpty()) {
+            item { SectionTitle("Stopped") }
+            item { Muted("Their history still counts toward your progress. Open one to start it again.") }
+            items(stopped, key = { "s" + it.id }) { h ->
+                SwipeRow(onDelete = { deleting = h }, asksFirst = true) {
+                    BloomCard(Modifier.clickable { nav.navigate("habit/${h.id}") }, padding = 12.dp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.alpha(0.5f)) { ToneIcon(h.icon, h.color) }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(h.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = b.muted)
+                                Muted("Stopped after ${Dates.fmtDay(h.endDate)}")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -165,9 +189,10 @@ fun HabitDetailScreen(nav: NavHostController, id: Long) {
     val total = counts.count { it.value >= maxOf(1, h.goal) }
     val b = LocalBloom.current
 
-    if (confirm) ConfirmDialog("Delete “${h.name}”?", "Its history and streaks are deleted too. This can't be undone.", "Delete", {
-        scope.launch { repo.deleteHabit(h.id); nav.popBackStack() }
-    }) { confirm = false }
+    val snack = LocalAppSnack.current
+    // Deleting leaves this page; the Undo message shows on the page you go back to.
+    if (confirm) HabitDeleteDialog(h, today, snack, allowFull = true, onDismiss = { confirm = false }) { nav.popBackStack() }
+    val stoppedHabit = HabitLogic.ended(h, today)
 
     Screen(
         title = h.name, onBack = { nav.popBackStack() },
@@ -183,8 +208,17 @@ fun HabitDetailScreen(nav: NavHostController, id: Long) {
                 Column {
                     Text(HabitLogic.repeatLabel(h), style = MaterialTheme.typography.titleMedium)
                     Muted(listOfNotNull(Dates.timeRange(h.startTime, h.endTime).ifEmpty { "Any time" }, if (h.goal > 1) "Goal ${h.goal} ${h.unit}".trim() else null).joinToString(" · "))
-                    if (h.reminder && h.startTime.isNotEmpty()) Pill("Reminder at ${Dates.fmtTime(h.startTime)}")
+                    if (stoppedHabit) Pill("Stopped after ${Dates.fmtDay(h.endDate)}", "honey")
+                    else if (h.alarm && h.startTime.isNotEmpty()) Pill("Alarm at ${Dates.fmtTime(h.startTime)} · ${toneName(h.alarmTone)}")
+                    else if (h.reminder && h.startTime.isNotEmpty()) Pill("Reminder at ${Dates.fmtTime(h.startTime)}")
                 }
+            }
+        }
+        if (stoppedHabit) item {
+            BloomCard {
+                Text("This habit is stopped", style = MaterialTheme.typography.titleMedium)
+                Muted("It no longer shows on Today or sends reminders. Its history below still counts.")
+                Button(onClick = { scope.launch { repo.resumeHabit(h) } }) { Text("Start again from today") }
             }
         }
         item {
@@ -300,7 +334,18 @@ fun HabitFormScreen(nav: NavHostController, id: Long, title: String = "") {
                         Text("Remind me")
                         Muted(if (f.startTime.isEmpty()) "Set a time to get a reminder." else "At ${Dates.fmtTime(f.startTime)}, with Done and Snooze buttons.")
                     }
-                    Switch(f.reminder && f.startTime.isNotEmpty(), { set(f.copy(reminder = it)) }, enabled = f.startTime.isNotEmpty())
+                    Switch((f.reminder || f.alarm) && f.startTime.isNotEmpty(), { set(f.copy(reminder = it, alarm = if (it) f.alarm else false)) }, enabled = f.startTime.isNotEmpty())
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Ring as an alarm")
+                        Muted("Plays a sound until you answer, even on the lock screen.")
+                    }
+                    Switch(f.alarm && f.startTime.isNotEmpty(), { set(f.copy(alarm = it, reminder = it || f.reminder)) }, enabled = f.startTime.isNotEmpty())
+                }
+                if (f.alarm && f.startTime.isNotEmpty()) {
+                    AlarmToneRow("Alarm sound", f.alarmTone, "Same as in Settings") { set(f.copy(alarmTone = it)) }
+                    AlarmPermissionNote()
                 }
             }
         }

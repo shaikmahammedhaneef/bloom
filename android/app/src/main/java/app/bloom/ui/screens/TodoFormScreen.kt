@@ -31,6 +31,8 @@ import androidx.navigation.NavHostController
 import app.bloom.data.Dates
 import app.bloom.data.Todo
 import app.bloom.data.TodoLogic
+import app.bloom.ui.components.AlarmPermissionNote
+import app.bloom.ui.components.AlarmToneRow
 import app.bloom.ui.components.BloomCard
 import app.bloom.ui.components.ChoiceChips
 import app.bloom.ui.components.DateField
@@ -102,7 +104,18 @@ fun TodoFormScreen(nav: NavHostController, id: Long, date: String, title: String
                         Text("Remind me", fontWeight = FontWeight.Medium)
                         Muted(if (f.startTime.isEmpty()) "Set a 'from' time to get a reminder." else "A notification at ${Dates.fmtTime(f.startTime)}.")
                     }
-                    Switch(f.reminder, { set(f.copy(reminder = it)) })
+                    Switch((f.reminder || f.alarm) && f.startTime.isNotEmpty(), { set(f.copy(reminder = it, alarm = if (it) f.alarm else false)) }, enabled = f.startTime.isNotEmpty())
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Ring as an alarm", fontWeight = FontWeight.Medium)
+                        Muted("Plays a sound until you answer, even on the lock screen.")
+                    }
+                    Switch(f.alarm && f.startTime.isNotEmpty(), { set(f.copy(alarm = it, reminder = it || f.reminder)) }, enabled = f.startTime.isNotEmpty())
+                }
+                if (f.alarm && f.startTime.isNotEmpty()) {
+                    AlarmToneRow("Alarm sound", f.alarmTone, "Same as in Settings") { set(f.copy(alarmTone = it)) }
+                    AlarmPermissionNote()
                 }
             }
         }
