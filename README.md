@@ -17,6 +17,10 @@ A self-care app for routines, habits, mood and health. Built with Next.js 16 (Ap
 - **Health** — water, sleep (bedtime to wake time), steps and weight, plus a Health stats page (7 days, 30 days, 90 days or a year) with averages, goal days, usual bedtime and wake-up, and charts for each. Also a breathing timer (3 patterns), a Pomodoro focus timer and 4 guided workouts.
 - **Profile** — 4 theme colors, dark mode, reminder settings, daily goals and CSV export.
 
+## Android app
+
+A native Android version (Kotlin, Jetpack Compose) is in [`android/`](android/README.md). It has no login, keeps all data on the phone, and sends reminders as phone notifications with Done, +1 and Snooze buttons.
+
 ## Run it locally
 
 You need Node.js 18.18 or newer, and a MongoDB database (local or MongoDB Atlas).
