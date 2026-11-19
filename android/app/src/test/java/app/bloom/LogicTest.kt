@@ -66,6 +66,28 @@ class LogicTest {
         assertFalse(TodoLogic.occursOn(multi, "2026-11-21"))
     }
 
+    @Test fun quickAdd() {
+        val a = app.bloom.data.QuickAdd.parse("call mom at 6pm tomorrow")
+        assertEquals("Call mom", a.title)
+        assertEquals("18:00", a.time)
+        assertTrue(a.tomorrow)
+        val b = app.bloom.data.QuickAdd.parse("Drink water every day 9:30am")
+        assertEquals("Drink water", b.title)
+        assertEquals("09:30", b.time)
+        assertTrue(b.daily)
+        val c = app.bloom.data.QuickAdd.parse("Stand-up 10:15 weekdays")
+        assertEquals("Stand-up", c.title)
+        assertEquals("10:15", c.time)
+        assertTrue(c.weekdays)
+        val d = app.bloom.data.QuickAdd.parse("Buy 2 apples")
+        assertEquals("Buy 2 apples", d.title)
+        assertEquals(null, d.time)
+        assertEquals("12:00", app.bloom.data.QuickAdd.parse("lunch 12pm").time)
+        assertEquals("00:30", app.bloom.data.QuickAdd.parse("sleep 12:30am").time)
+        assertEquals("drop" to "sky", app.bloom.data.QuickAdd.guessIcon("Drink water"))
+        assertEquals("book" to "lilac", app.bloom.data.QuickAdd.guessIcon("Read 10 pages"))
+    }
+
     @Test fun labels() {
         assertEquals("Weekdays", HabitLogic.daysLabel(listOf(1, 2, 3, 4, 5)))
         assertEquals("Mon, Wed, Fri", HabitLogic.daysLabel(listOf(5, 1, 3)))

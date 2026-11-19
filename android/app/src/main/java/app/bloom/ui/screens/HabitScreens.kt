@@ -25,6 +25,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material3.Button
@@ -37,7 +39,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
@@ -60,6 +65,7 @@ import app.bloom.data.Catalog
 import app.bloom.data.Dates
 import app.bloom.data.Habit
 import app.bloom.data.HabitLogic
+import app.bloom.data.QuickAdd
 import app.bloom.data.countsByHabit
 import app.bloom.data.habitDay
 import app.bloom.ui.components.BloomCard
@@ -71,6 +77,8 @@ import app.bloom.ui.components.Pill
 import app.bloom.ui.components.Screen
 import app.bloom.ui.components.SectionTitle
 import app.bloom.ui.components.StatTile
+import app.bloom.ui.components.SwipeRow
+import app.bloom.ui.components.rememberSnackbar
 import app.bloom.ui.components.TimeField
 import app.bloom.ui.components.ToneIcon
 import app.bloom.ui.components.iconFor
@@ -86,9 +94,13 @@ fun HabitsScreen(nav: NavHostController) {
     val counts = remember(logs) { countsByHabit(logs) }
     var cat by remember { mutableStateOf("all") }
     val b = LocalBloom.current
+    val app = bloomApp()
+    val scope = rememberCoroutineScope()
+    val snack = rememberSnackbar()
 
     Screen(
         title = "Habits",
+        snackbar = snack,
         actions = { IconButton(onClick = { nav.navigate("templates") }) { Icon(Icons.Rounded.AutoAwesome, "Templates") } },
         fab = { FloatingActionButton(onClick = { nav.navigate("habitForm/0") }) { Icon(Icons.Rounded.Add, "New habit") } },
     ) {
@@ -105,12 +117,23 @@ fun HabitsScreen(nav: NavHostController) {
             val c = counts[h.id] ?: emptyMap()
             val d = habitDay(h, c, today)
             val rate = HabitLogic.completionRate(h, c, today)
+            SwipeRow(
+                onDelete = {
+                    app.scope.launch {
+                        val saved = repo.deleteHabitUndoable(h.id) ?: return@launch
+                        snack.currentSnackbarData?.dismiss()
+                        if (snack.showSnackbar("Deleted “${h.name}”", "Undo", withDismissAction = true) == SnackbarResult.ActionPerformed) repo.restoreHabit(saved)
+                    }
+                },
+                onDone = if (d.scheduled) ({ scope.launch { repo.toggleHabit(h, today, d.count) } }) else null,
+                doneLabel = if (d.done) "Not done today" else "Done today",
+            ) {
             BloomCard(Modifier.clickable { nav.navigate("habit/${h.id}") }, padding = 12.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ToneIcon(h.icon, h.color)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(h.name, fontWeight = FontWeight.Medium)
+                        Text(h.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Muted(listOfNotNull(HabitLogic.repeatLabel(h), Dates.timeRange(h.startTime, h.endTime).ifEmpty { null }, rate?.let { "$it% in 30 days" }).joinToString(" · "))
                     }
                     if (h.reminder && h.startTime.isNotEmpty()) Icon(Icons.Rounded.NotificationsActive, "Reminder on", tint = b.muted, modifier = Modifier.size(18.dp))
@@ -118,6 +141,7 @@ fun HabitsScreen(nav: NavHostController) {
                     Icon(Icons.Rounded.LocalFireDepartment, null, tint = b.toneFg("peach"), modifier = Modifier.size(18.dp))
                     Text("${d.streak}${if (d.streakUnit == "week") "w" else ""}", fontSize = 13.sp)
                 }
+            }
             }
         }
     }
@@ -206,100 +230,128 @@ fun HabitDetailScreen(nav: NavHostController, id: Long) {
 }
 
 @Composable
-fun HabitFormScreen(nav: NavHostController, id: Long) {
+fun HabitFormScreen(nav: NavHostController, id: Long, title: String = "") {
     val repo = bloomApp().repo
     val scope = rememberCoroutineScope()
-    var h by remember { mutableStateOf<Habit?>(if (id == 0L) Habit(name = "", reminder = true) else null) }
+    var h by remember {
+        mutableStateOf<Habit?>(
+            if (id == 0L) QuickAdd.guessIcon(title).let { (icon, color) -> Habit(name = title, icon = icon, color = color, reminder = true) } else null,
+        )
+    }
     var error by remember { mutableStateOf<String?>(null) }
+    // New habits pick an icon from their name until you choose one yourself.
+    var iconChosen by remember { mutableStateOf(id != 0L) }
+    var more by remember { mutableStateOf(false) }
     LaunchedEffect(id) { if (id != 0L) h = repo.dao.habit(id) }
     val f = h ?: return
     fun set(x: Habit) { h = x; error = null }
     val b = LocalBloom.current
 
+    fun save() {
+        error = when {
+            f.name.isBlank() -> "Give the habit a name."
+            f.repeat == "days" && f.days.isEmpty() -> "Pick at least one day."
+            else -> null
+        }
+        if (error == null) scope.launch {
+            val newId = repo.saveHabit(f)
+            nav.popBackStack()
+            if (id == 0L) nav.navigate("habit/$newId")
+        }
+    }
+
     Screen(title = if (id == 0L) "New habit" else "Edit habit", onBack = { nav.popBackStack() }) {
         item {
-            OutlinedTextField(f.name, { set(f.copy(name = it.take(80))) }, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true, placeholder = { Text("e.g. Drink a glass of water") })
-        }
-        item {
-            SectionTitle("Icon and color")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (ic in Catalog.ICONS) {
-                    val sel = ic == f.icon
-                    Box(
-                        Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(if (sel) b.toneBg(f.color) else b.surf)
-                            .border(if (sel) 2.dp else 1.dp, if (sel) b.toneFg(f.color) else b.line, RoundedCornerShape(12.dp)).clickable { set(f.copy(icon = ic)) },
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(iconFor(ic), ic, tint = if (sel) b.toneFg(f.color) else b.muted) }
-                }
-            }
-            Spacer(Modifier.size(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                for (t in Catalog.TONES) {
-                    Box(
-                        Modifier.size(36.dp).clip(CircleShape).background(b.toneBg(t.key))
-                            .border(if (t.key == f.color) 3.dp else 1.dp, if (t.key == f.color) b.toneFg(t.key) else b.line, CircleShape).clickable { set(f.copy(color = t.key)) },
-                    )
-                }
-            }
-        }
-        item {
-            SectionTitle("Category")
-            ChoiceChips(Catalog.CATEGORIES.map { it.key to it.name }, { it == f.category }) { set(f.copy(category = it)) }
-        }
-        item {
-            SectionTitle("When")
-            Row {
-                TimeField("From", f.startTime, Modifier.weight(1f)) { set(f.copy(startTime = it, endTime = if (it.isEmpty()) "" else f.endTime)) }
-                if (f.startTime.isNotEmpty()) TimeField("To", f.endTime, Modifier.weight(1f)) { set(f.copy(endTime = it)) }
-            }
-        }
-        item {
-            SectionTitle("Repeat")
-            ChoiceChips(listOf("daily" to "Every day", "days" to "Some days", "weekly" to "Times a week"), { it == f.repeat }) {
-                set(f.copy(repeat = it, days = if (it == "days" && f.days.isEmpty()) listOf(1, 2, 3, 4, 5) else f.days))
-            }
-            if (f.repeat == "days") DaysPicker(f.days) { set(f.copy(days = it)) }
-            if (f.repeat == "weekly") {
-                Muted("${f.timesPerWeek} times a week")
-                Slider(f.timesPerWeek.toFloat(), { set(f.copy(timesPerWeek = it.toInt())) }, valueRange = 1f..7f, steps = 5)
-            }
-        }
-        item {
-            SectionTitle("Daily goal")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ToneIcon(f.icon, f.color, 52.dp)
+                Spacer(Modifier.width(12.dp))
                 OutlinedTextField(
-                    f.goal.toString(), { v -> v.filter { it.isDigit() }.take(3).toIntOrNull()?.let { set(f.copy(goal = it.coerceIn(1, 100))) } },
-                    Modifier.weight(1f), label = { Text("Times") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    f.name,
+                    { v ->
+                        val name = v.take(80)
+                        set(if (iconChosen) f.copy(name = name) else QuickAdd.guessIcon(name).let { (icon, color) -> f.copy(name = name, icon = icon, color = color) })
+                    },
+                    Modifier.weight(1f), label = { Text("Habit") }, singleLine = true, placeholder = { Text("e.g. Read 10 pages") },
                 )
-                OutlinedTextField(f.unit, { set(f.copy(unit = it.take(20))) }, Modifier.weight(1f), label = { Text("Unit (optional)") }, singleLine = true, placeholder = { Text("glasses") })
             }
         }
         item {
             BloomCard {
+                Text("How often?", fontWeight = FontWeight.Medium)
+                ChoiceChips(listOf("daily" to "Every day", "days" to "Some days", "weekly" to "Times a week"), { it == f.repeat }) {
+                    set(f.copy(repeat = it, days = if (it == "days" && f.days.isEmpty()) listOf(1, 2, 3, 4, 5) else f.days))
+                }
+                if (f.repeat == "days") DaysPicker(f.days) { set(f.copy(days = it)) }
+                if (f.repeat == "weekly") {
+                    Muted("${f.timesPerWeek} times a week")
+                    Slider(f.timesPerWeek.toFloat(), { set(f.copy(timesPerWeek = it.toInt())) }, valueRange = 1f..7f, steps = 5)
+                }
+            }
+        }
+        item {
+            BloomCard {
+                Text("When?", fontWeight = FontWeight.Medium)
+                Row {
+                    TimeField("From", f.startTime, Modifier.weight(1f)) { set(f.copy(startTime = it, endTime = if (it.isEmpty()) "" else f.endTime)) }
+                    if (f.startTime.isNotEmpty()) TimeField("To (optional)", f.endTime, Modifier.weight(1f)) { set(f.copy(endTime = it)) }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Remind me", fontWeight = FontWeight.Medium)
-                        Muted(if (f.startTime.isEmpty()) "Set a 'from' time to get a reminder." else "A notification at ${Dates.fmtTime(f.startTime)}, with Done and Snooze buttons.")
+                        Text("Remind me")
+                        Muted(if (f.startTime.isEmpty()) "Set a time to get a reminder." else "At ${Dates.fmtTime(f.startTime)}, with Done and Snooze buttons.")
                     }
-                    Switch(f.reminder, { set(f.copy(reminder = it)) })
+                    Switch(f.reminder && f.startTime.isNotEmpty(), { set(f.copy(reminder = it)) }, enabled = f.startTime.isNotEmpty())
+                }
+            }
+        }
+        item {
+            TextButton(onClick = { more = !more }) {
+                Icon(if (more) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null)
+                Spacer(Modifier.width(6.dp))
+                Text(if (more) "Fewer options" else "Icon, color, category and daily goal")
+            }
+        }
+        if (more) {
+            item {
+                BloomCard {
+                    Text("Icon", fontWeight = FontWeight.Medium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (ic in Catalog.ICONS) {
+                            val sel = ic == f.icon
+                            Box(
+                                Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)).background(if (sel) b.toneBg(f.color) else b.surf)
+                                    .border(if (sel) 2.dp else 1.dp, if (sel) b.toneFg(f.color) else b.line, RoundedCornerShape(12.dp))
+                                    .clickable { iconChosen = true; set(f.copy(icon = ic)) },
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(iconFor(ic), ic, tint = if (sel) b.toneFg(f.color) else b.muted) }
+                        }
+                    }
+                    Text("Color", fontWeight = FontWeight.Medium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        for (t in Catalog.TONES) {
+                            Box(
+                                Modifier.size(34.dp).clip(CircleShape).background(b.toneBg(t.key))
+                                    .border(if (t.key == f.color) 3.dp else 1.dp, if (t.key == f.color) b.toneFg(t.key) else b.line, CircleShape)
+                                    .clickable { iconChosen = true; set(f.copy(color = t.key)) },
+                            )
+                        }
+                    }
+                    Text("Category", fontWeight = FontWeight.Medium)
+                    ChoiceChips(Catalog.CATEGORIES.map { it.key to it.name }, { it == f.category }) { set(f.copy(category = it)) }
+                    Text("Daily goal", fontWeight = FontWeight.Medium)
+                    Muted("For things you count, like 8 glasses of water.")
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            f.goal.toString(), { v -> v.filter { it.isDigit() }.take(3).toIntOrNull()?.let { set(f.copy(goal = it.coerceIn(1, 100))) } },
+                            Modifier.weight(1f), label = { Text("Times a day") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        )
+                        OutlinedTextField(f.unit, { set(f.copy(unit = it.take(20))) }, Modifier.weight(1f), label = { Text("Unit") }, singleLine = true, placeholder = { Text("glasses") })
+                    }
                 }
             }
         }
         if (error != null) item { Text(error!!, color = MaterialTheme.colorScheme.error) }
-        item {
-            Button(onClick = {
-                error = when {
-                    f.name.isBlank() -> "Give the habit a name."
-                    f.repeat == "days" && f.days.isEmpty() -> "Pick at least one day."
-                    else -> null
-                }
-                if (error == null) scope.launch {
-                    val newId = repo.saveHabit(f)
-                    nav.popBackStack()
-                    if (id == 0L) nav.navigate("habit/$newId")
-                }
-            }, Modifier.fillMaxWidth()) { Text(if (id == 0L) "Add habit" else "Save") }
-        }
+        item { Button(onClick = { save() }, Modifier.fillMaxWidth()) { Text(if (id == 0L) "Add habit" else "Save") } }
     }
 }
 

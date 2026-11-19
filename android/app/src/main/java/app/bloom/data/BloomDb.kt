@@ -33,6 +33,7 @@ interface BloomDao {
     @Query("SELECT * FROM habit_logs WHERE habitId = :id AND date = :date") suspend fun log(id: Long, date: String): HabitLog?
     @Upsert suspend fun upsertLog(l: HabitLog)
     @Query("DELETE FROM habit_logs WHERE habitId = :id") suspend fun deleteLogs(id: Long)
+    @Query("SELECT * FROM habit_logs WHERE habitId = :id") suspend fun logsFor(id: Long): List<HabitLog>
 
     // To-dos
     @Query("SELECT * FROM todos ORDER BY createdAt") fun todosFlow(): Flow<List<Todo>>

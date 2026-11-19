@@ -5,6 +5,14 @@ import android.app.AlarmManager
 import android.app.NotificationManager
 import android.content.Intent
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onRoot
@@ -21,6 +29,7 @@ import app.bloom.data.Todo
 import app.bloom.reminders.ActionReceiver
 import app.bloom.reminders.Reminders
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.github.takahirom.roborazzi.captureScreenRoboImage
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -29,6 +38,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
@@ -76,9 +86,64 @@ class AppTest {
             tab("Habits"); compose.waitForIdle(); compose.onRoot().captureRoboImage("$shots/2-habits.png")
             compose.onNode(hasText("Stretch") and hasClickAction()).performClick(); compose.waitForIdle()
             compose.onRoot().captureRoboImage("$shots/3-habit-detail.png")
+            it.onActivity { a -> a.onBackPressedDispatcher.onBackPressed() }
+            compose.waitForIdle()
             tab("Mood"); compose.waitForIdle(); compose.onRoot().captureRoboImage("$shots/4-mood.png")
             tab("Health"); compose.waitForIdle(); compose.onRoot().captureRoboImage("$shots/5-health.png")
             tab("Progress"); Thread.sleep(500); compose.waitForIdle(); compose.onRoot().captureRoboImage("$shots/6-progress.png")
+        }
+    }
+
+    private fun waitFor(what: String, check: () -> Boolean) {
+        repeat(60) { if (check()) return; Thread.sleep(50); compose.waitForIdle() }
+        throw AssertionError("Timed out waiting for $what")
+    }
+
+    @Test fun quickAddAndSwipe() {
+        val dao = app.repo.dao
+        ActivityScenario.launch(MainActivity::class.java).use {
+            compose.waitForIdle()
+            // Quick add: one line, the time and day are understood.
+            compose.onNodeWithText("Add", useUnmergedTree = true).performClick()
+            compose.waitForIdle()
+            compose.onNode(hasSetTextAction()).performTextInput("call mom at 6pm tomorrow")
+            compose.waitForIdle()
+            captureScreenRoboImage("$shots/7-quick-add.png")
+            compose.onNode(hasSetTextAction()).performImeAction()
+            waitFor("the new to-do") { runBlocking { dao.todos().any { it.title == "Call mom" } } }
+            val t = runBlocking { dao.todos().first { it.title == "Call mom" } }
+            assertEquals(Dates.add(Dates.today(), 1), t.date)
+            assertEquals("18:00", t.startTime)
+            assertTrue(t.reminder)
+
+            // Swipe left deletes, and Undo brings it back. (Wait for the "Added" message to go first.)
+            compose.mainClock.advanceTimeBy(6000)
+            compose.waitForIdle()
+            compose.onNodeWithText("Call the dentist").performTouchInput { swipeLeft() }
+            waitFor("the delete") { runBlocking { dao.todos().none { it.title == "Call the dentist" } } }
+            compose.waitForIdle()
+            compose.onRoot().captureRoboImage("$shots/8-undo.png")
+            compose.onNodeWithText("Undo").performClick()
+            waitFor("the undo") { runBlocking { dao.todos().any { it.title == "Call the dentist" } } }
+
+            // Swipe right ticks a habit off.
+            compose.waitForIdle()
+            compose.onNodeWithText("Stretch").performTouchInput { swipeRight() }
+            val stretch = runBlocking { dao.habits().first { it.name == "Stretch" } }
+            waitFor("the habit to be done") { runBlocking { dao.log(stretch.id, Dates.today())?.count == 1 } }
+        }
+    }
+
+    @Test @Config(qualifiers = "w360dp-h740dp-xhdpi") fun smallPhoneLargeText() {
+        RuntimeEnvironment.setFontScale(1.3f)
+        ActivityScenario.launch(MainActivity::class.java).use {
+            compose.waitForIdle()
+            compose.onRoot().captureRoboImage("$shots/9-small-large-text.png")
+            compose.onNode(hasText("Habits") and hasClickAction()).performClick()
+            compose.waitForIdle()
+            compose.onNode(hasText("Stretch") and hasClickAction()).performClick()
+            compose.waitForIdle()
+            compose.onRoot().captureRoboImage("$shots/10-small-habit.png")
         }
     }
 

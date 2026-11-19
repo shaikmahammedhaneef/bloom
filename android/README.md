@@ -2,7 +2,13 @@
 
 A native Android version of Bloom, written in Kotlin with Jetpack Compose. It has no login and no server: everything is stored on the phone, and reminders are scheduled on the phone, so they arrive even when Bloom is closed and the phone is offline.
 
-<img src="docs/today.png" width="240" alt="Today screen"> <img src="docs/habit.png" width="240" alt="Habit details"> <img src="docs/progress.png" width="240" alt="Progress screen">
+<img src="docs/today.png" width="240" alt="Today screen"> <img src="docs/quick-add.png" width="240" alt="Quick add"> <img src="docs/progress.png" width="240" alt="Progress screen">
+
+## Everyday use
+
+- **Quick add.** Tap **Add**, pick To-do or Habit, and type one line. "Call mom at 6pm tomorrow" or "Drink water every day 9am" fills in the time, day and repeat, and turns on a reminder. Habits get an icon and color from their name. **More options** opens the full form.
+- **Swipes.** On Today, swipe right to tick something off and left to delete it. Every delete has an **Undo**. On a repeating to-do, a left swipe skips only that day. The Habits list and mood check-ins can be swiped the same way.
+- **Week strip.** Swipe it sideways to change week. Tap a day to see it. A dot under each day shows how much got done. When you're on another day, **Today** in the top bar brings you back.
 
 ## What changed from the web app
 
@@ -36,7 +42,7 @@ cd android
 
 The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. To install it on a connected phone, run `./gradlew installDebug`. You can also open the `android` folder in Android Studio and press Run.
 
-The release build (`./gradlew assembleRelease`) is minified and comes to about 1.4 MB. It's signed with the debug key so you can install it. Before you publish to Google Play, add your own signing key in `app/build.gradle.kts`.
+The release build (`./gradlew assembleRelease`) is minified and comes to about 1.5 MB. It's signed with the debug key so you can install it. Before you publish to Google Play, add your own signing key in `app/build.gradle.kts`.
 
 ## Tests
 
@@ -44,8 +50,8 @@ The release build (`./gradlew assembleRelease`) is minified and comes to about 1
 ./gradlew testDebugUnitTest
 ```
 
-- `LogicTest` checks dates, streaks (daily, some-days and weekly), count goals and repeating or multi-day to-dos.
-- `AppTest` runs the whole app under Robolectric. It renders each tab to a PNG in `app/build/screens/`, and checks that reminders are worked out and set as alarms, that notifications show the right buttons, that tapping **Done** in a notification completes the habit and syncs water, and that a finished habit isn't reminded again.
+- `LogicTest` checks dates, streaks (daily, some-days and weekly), count goals, repeating or multi-day to-dos, and how quick add reads times, days and repeats.
+- `AppTest` runs the whole app under Robolectric. It renders each tab to a PNG in `app/build/screens/`, and checks that reminders are worked out and set as alarms, that notifications show the right buttons, that tapping **Done** in a notification completes the habit and syncs water, and that a finished habit isn't reminded again. It also adds a to-do through quick add, deletes one with a swipe and undoes it, ticks a habit off with a swipe, and renders Today and a habit's page on a small phone with large text.
 
 ## Layout
 

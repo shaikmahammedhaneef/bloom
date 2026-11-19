@@ -43,11 +43,11 @@ import kotlinx.coroutines.launch
 
 /** Adds or edits a to-do. `date` is the day it was opened from (the day being edited, for a repeating one). */
 @Composable
-fun TodoFormScreen(nav: NavHostController, id: Long, date: String) {
+fun TodoFormScreen(nav: NavHostController, id: Long, date: String, title: String = "") {
     val repo = bloomApp().repo
     val scope = rememberCoroutineScope()
     var orig by remember { mutableStateOf<Todo?>(null) }
-    var t by remember { mutableStateOf<Todo?>(if (id == 0L) Todo(title = "", date = date, reminder = true) else null) }
+    var t by remember { mutableStateOf<Todo?>(if (id == 0L) Todo(title = title, date = date, reminder = true) else null) }
     var error by remember { mutableStateOf<String?>(null) }
     // For a repeating to-do: ask "this day or all days?" before saving or deleting.
     var ask by remember { mutableStateOf<String?>(null) }

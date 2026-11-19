@@ -33,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -63,6 +64,8 @@ import app.bloom.ui.components.Muted
 import app.bloom.ui.components.Pill
 import app.bloom.ui.components.Screen
 import app.bloom.ui.components.SectionTitle
+import app.bloom.ui.components.SwipeRow
+import app.bloom.ui.components.rememberSnackbar
 import app.bloom.ui.components.iconFor
 import app.bloom.ui.theme.LocalBloom
 import java.time.YearMonth
@@ -78,9 +81,17 @@ fun MoodScreen(nav: NavHostController) {
     val recent by remember(today) { repo.moodsSince(Dates.add(today, -13)) }.collectAsStateWithLifecycle(emptyList())
     // The check-in being written, or edited.
     var draft by remember { mutableStateOf<Mood?>(null) }
+    val snack = rememberSnackbar()
+    val app = bloomApp()
+    fun remove(m: Mood) = app.scope.launch {
+        repo.deleteMood(m)
+        snack.currentSnackbarData?.dismiss()
+        if (snack.showSnackbar("Check-in deleted", "Undo", withDismissAction = true) == SnackbarResult.ActionPerformed) repo.restoreMood(m)
+    }
 
     Screen(
         title = "Mood",
+        snackbar = snack,
         actions = {
             IconButton(onClick = { nav.navigate("journal") }) { Icon(Icons.AutoMirrored.Rounded.MenuBook, "Journal") }
             IconButton(onClick = { nav.navigate("moodHistory") }) { Icon(Icons.Rounded.CalendarMonth, "Mood calendar") }
@@ -125,7 +136,7 @@ fun MoodScreen(nav: NavHostController) {
         }
         if (todays.isNotEmpty()) {
             item { SectionTitle("Today") }
-            items(todays, key = { it.id }) { m -> MoodRow(m, onEdit = { draft = m }, onDelete = { scope.launch { repo.deleteMood(m) } }) }
+            items(todays, key = { it.id }) { m -> SwipeRow(onDelete = { remove(m) }) { MoodRow(m, onEdit = { draft = m }, onDelete = { remove(m) }) } }
         }
         item {
             BloomCard {

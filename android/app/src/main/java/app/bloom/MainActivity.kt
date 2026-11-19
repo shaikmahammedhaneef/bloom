@@ -5,6 +5,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -13,6 +15,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.SentimentSatisfied
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -104,29 +107,38 @@ private fun BloomNav(openRoute: MutableStateFlow<String?>) {
     val entry by nav.currentBackStackEntryAsState()
     val current = entry?.destination?.route?.substringBefore("/")?.substringBefore("?") ?: "today"
 
+    // The bottom bar shows on the five main tabs only; forms and details get the full height.
+    val onTab = TABS.any { it.route == current }
     Scaffold(
+        // Each screen handles the status bar and keyboard itself, so this outer one adds no padding of its own.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            NavigationBar {
+            if (onTab) NavigationBar {
                 for (t in TABS) {
                     NavigationBarItem(
                         selected = current in t.group,
                         onClick = { nav.goTab(t.route) },
                         icon = { Icon(t.icon, null) },
-                        label = { Text(t.label) },
+                        // One line at any text size, so long labels never wrap on small phones.
+                        label = { Text(t.label, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false) },
                         colors = NavigationBarItemDefaults.colors(),
                     )
                 }
             }
         },
     ) { pad ->
-        NavHost(nav, startDestination = "today", modifier = Modifier.padding(bottom = pad.calculateBottomPadding())) {
+        NavHost(nav, startDestination = "today", modifier = Modifier.padding(pad).consumeWindowInsets(pad)) {
             composable("today") { TodayScreen(nav) }
             composable("habits") { HabitsScreen(nav) }
             composable("habit/{id}", listOf(navArgument("id") { type = NavType.LongType })) { HabitDetailScreen(nav, it.arguments!!.getLong("id")) }
-            composable("habitForm/{id}", listOf(navArgument("id") { type = NavType.LongType })) { HabitFormScreen(nav, it.arguments!!.getLong("id")) }
-            composable("todo/{id}/{date}", listOf(navArgument("id") { type = NavType.LongType }, navArgument("date") { type = NavType.StringType })) {
-                TodoFormScreen(nav, it.arguments!!.getLong("id"), it.arguments!!.getString("date")!!)
-            }
+            composable(
+                "habitForm/{id}?title={title}",
+                listOf(navArgument("id") { type = NavType.LongType }, navArgument("title") { type = NavType.StringType; defaultValue = "" }),
+            ) { HabitFormScreen(nav, it.arguments!!.getLong("id"), it.arguments!!.getString("title") ?: "") }
+            composable(
+                "todo/{id}/{date}?title={title}",
+                listOf(navArgument("id") { type = NavType.LongType }, navArgument("date") { type = NavType.StringType }, navArgument("title") { type = NavType.StringType; defaultValue = "" }),
+            ) { TodoFormScreen(nav, it.arguments!!.getLong("id"), it.arguments!!.getString("date")!!, it.arguments!!.getString("title") ?: "") }
             composable("templates") { TemplatesScreen(nav) }
             composable("settings") { SettingsScreen(nav) }
             composable("mood") { MoodScreen(nav) }

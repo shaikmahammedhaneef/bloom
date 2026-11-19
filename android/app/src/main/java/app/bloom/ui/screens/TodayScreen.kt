@@ -1,42 +1,42 @@
-@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 
 package app.bloom.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,18 +46,24 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import app.bloom.data.Catalog
+import app.bloom.data.Counts
 import app.bloom.data.Dates
+import app.bloom.data.Habit
 import app.bloom.data.HabitDay
 import app.bloom.data.HabitLogic
 import app.bloom.data.Mood
@@ -72,13 +78,31 @@ import app.bloom.ui.components.Muted
 import app.bloom.ui.components.ProgressRing
 import app.bloom.ui.components.Screen
 import app.bloom.ui.components.SectionTitle
+import app.bloom.ui.components.SwipeRow
 import app.bloom.ui.components.ToneIcon
+import app.bloom.ui.components.rememberSnackbar
 import app.bloom.ui.theme.LocalBloom
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 private sealed interface Item { val time: String }
 private data class HabitItem(val d: HabitDay) : Item { override val time get() = d.habit.startTime }
 private data class TodoItem(val t: Todo, val done: Boolean) : Item { override val time get() = t.startTime }
+
+/** Share of a day's habits that were done, or null if there was nothing to do (or it's in the future). */
+private fun dayDone(habits: List<Habit>, counts: Map<Long, Counts>, k: String, today: String): Float? {
+    if (k > today) return null
+    var s = 0
+    var d = 0
+    for (h in habits) {
+        if (!HabitLogic.isScheduled(h, k)) continue
+        val done = HabitLogic.doneOn(h, counts[h.id] ?: emptyMap(), k)
+        if (h.repeat == "weekly" && !done) continue
+        s++
+        if (done) d++
+    }
+    return if (s == 0) null else d.toFloat() / s
+}
 
 @Composable
 fun TodayScreen(nav: NavHostController) {
@@ -87,68 +111,68 @@ fun TodayScreen(nav: NavHostController) {
     val today = rememberToday()
     var date by remember(today) { mutableStateOf(today) }
     val scope = rememberCoroutineScope()
+    val snack = rememberSnackbar()
     val settings by app.settings.flow.collectAsStateWithLifecycle()
     val habits by repo.habitsFlow().collectAsStateWithLifecycle(emptyList())
     val logs by remember(today) { repo.logsFlow(today) }.collectAsStateWithLifecycle(emptyList())
     val todos by repo.todosFlow().collectAsStateWithLifecycle(emptyList())
     val moods by remember(date) { repo.moodsOn(date) }.collectAsStateWithLifecycle(emptyList())
     var points by remember { mutableIntStateOf(0) }
+    var adding by remember { mutableStateOf(false) }
     LaunchedEffect(logs, moods) { points = repo.points() }
 
     val counts = remember(logs) { countsByHabit(logs) }
-    val days = remember(habits, counts, date) {
-        habits.map { habitDay(it, counts[it.id] ?: emptyMap(), date) }.filter { it.scheduled }
-    }
+    val days = remember(habits, counts, date) { habits.map { habitDay(it, counts[it.id] ?: emptyMap(), date) }.filter { it.scheduled } }
     val dayTodos = remember(todos, date) { todos.filter { TodoLogic.occursOn(it, date) }.map { TodoItem(it, TodoLogic.doneOn(it, date)) } }
-    val items: List<Item> = remember(days, dayTodos) {
-        (days.map { HabitItem(it) } + dayTodos).sortedWith { a, b -> HabitLogic.byTime(a.time, b.time) }
-    }
+    val items: List<Item> = remember(days, dayTodos) { (days.map { HabitItem(it) } + dayTodos).sortedWith { a, b -> HabitLogic.byTime(a.time, b.time) } }
     val countable = days.filter { it.habit.repeat != "weekly" || it.done }
-    val pct = if (countable.isEmpty()) 0 else countable.count { it.done } * 100 / countable.size
+    val doneCount = countable.count { it.done } + dayTodos.count { it.done }
+    val total = countable.size + dayTodos.size
+    val pct = if (total == 0) 0 else doneCount * 100 / total
     val mood = bestByDate(moods)[date]
-    var menu by remember { mutableStateOf(false) }
 
+    if (adding) QuickAddSheet(nav, date, onDismiss = { adding = false }) { msg -> scope.launch { snack.showSnackbar(msg) } }
+
+    val title = when (date) {
+        today -> "Today"
+        Dates.add(today, 1) -> "Tomorrow"
+        Dates.add(today, -1) -> "Yesterday"
+        else -> Dates.fmtDay(date)
+    }
     Screen(
-        title = if (date == today) "${Dates.greeting()}${if (settings.name.isNotBlank()) ", ${settings.name}" else ""}" else Dates.fmtDay(date),
-        subtitle = if (date == today) Dates.fmtLong(date) else if (date < today) "Past day" else "Coming up",
-        actions = { IconButton(onClick = { nav.navigate("settings") }) { Icon(Icons.Rounded.Settings, "Settings") } },
+        title = title,
+        subtitle = if (date == today) "${Dates.greeting()}${if (settings.name.isNotBlank()) ", ${settings.name}" else ""}" else Dates.fmtLong(date),
+        snackbar = snack,
+        actions = {
+            if (date != today) TextButton(onClick = { date = today }) { Text("Today") }
+            IconButton(onClick = { nav.navigate("settings") }) { Icon(Icons.Rounded.Settings, "Settings") }
+        },
         fab = {
-            Box {
-                FloatingActionButton(onClick = { menu = true }) { Icon(Icons.Rounded.Add, "Add") }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("New habit") }, onClick = { menu = false; nav.navigate("habitForm/0") })
-                    DropdownMenuItem(text = { Text("New to-do") }, onClick = { menu = false; nav.navigate("todo/0/$date") })
-                    DropdownMenuItem(text = { Text("Add from a template") }, onClick = { menu = false; nav.navigate("templates") })
-                }
-            }
+            ExtendedFloatingActionButton(onClick = { adding = true }, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("Add") })
         },
     ) {
-        item { WeekStrip(date, today, onPick = { date = it }) }
+        item { WeekPager(date, today, { k -> dayDone(habits, counts, k, today) }) { date = it } }
         item {
-            BloomCard {
+            BloomCard(padding = 14.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    ProgressRing(pct) { Text("$pct%", fontWeight = FontWeight.SemiBold) }
-                    Spacer(Modifier.width(16.dp))
+                    ProgressRing(pct, 56.dp) { Text("$pct%", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                    Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("${countable.count { it.done }} of ${countable.size} habits done", style = MaterialTheme.typography.titleMedium)
-                        Muted("$points points · ${dayTodos.count { it.done }}/${dayTodos.size} to-dos")
+                        Text(if (total == 0) "Nothing planned yet" else "$doneCount of $total done", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Muted("$points points")
                     }
+                    if (mood != null) Text(Catalog.MOOD_EMOJI[mood.level - 1], fontSize = 28.sp, modifier = Modifier.clickable { nav.navigate("mood") })
                 }
-                if (date <= today) {
-                    if (mood == null) {
-                        Muted("How are you feeling?")
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            for (level in 1..5) {
-                                TextButton(onClick = {
+                if (date <= today && mood == null) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                        Muted("Mood?")
+                        for (level in 1..5) {
+                            Text(
+                                Catalog.MOOD_EMOJI[level - 1], fontSize = 24.sp,
+                                modifier = Modifier.clip(CircleShape).clickable {
                                     scope.launch { repo.saveMood(Mood(date = date, time = if (date == today) Dates.nowTime() else "21:00", level = level)) }
-                                }) { Text(Catalog.MOOD_EMOJI[level - 1], fontSize = 26.sp) }
-                            }
-                        }
-                    } else {
-                        Row(Modifier.clickable { nav.navigate("mood") }, verticalAlignment = Alignment.CenterVertically) {
-                            Text(Catalog.MOOD_EMOJI[mood.level - 1], fontSize = 26.sp)
-                            Spacer(Modifier.width(8.dp))
-                            Muted("Feeling ${Catalog.MOOD_NAMES[mood.level - 1].lowercase()}${if (moods.size > 1) " · ${moods.size} check-ins" else ""}")
+                                }.padding(6.dp),
+                            )
                         }
                     }
                 }
@@ -157,102 +181,177 @@ fun TodayScreen(nav: NavHostController) {
         if (items.isEmpty()) {
             item {
                 BloomCard {
-                    Text("Nothing planned", style = MaterialTheme.typography.titleMedium)
-                    Muted("Add a habit or a to-do, or start from a ready-made routine.")
+                    Text("A clear day", style = MaterialTheme.typography.titleMedium)
+                    Muted("Add a to-do or a habit in a few words, or start from a ready-made routine.")
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { nav.navigate("templates") }) { Text("Browse templates") }
-                        OutlinedButton(onClick = { nav.navigate("habitForm/0") }) { Text("New habit") }
+                        Button(onClick = { adding = true }) { Text("Add something") }
+                        OutlinedButton(onClick = { nav.navigate("templates") }) { Text("Templates") }
                     }
                 }
             }
+        } else if (date == today) {
+            item { Muted("Swipe right to tick off, left to delete.", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
         }
         val groups = items.groupBy { Dates.partOfDay(it.time) }
         for (part in listOf("morning", "afternoon", "evening", "anytime")) {
             val list = groups[part] ?: continue
             item(key = "h-$part") { SectionTitle(part.replaceFirstChar { it.uppercase() }) }
-            items(list, key = { if (it is HabitItem) "h${it.d.habit.id}" else "t${(it as TodoItem).t.id}" }) { it ->
+            items(list, key = { if (it is HabitItem) "h${it.d.habit.id}" else "t${(it as TodoItem).t.id}" }) {
                 when (it) {
-                    is HabitItem -> HabitCard(it.d, date, nav)
-                    is TodoItem -> TodoCard(it, date, nav)
+                    is HabitItem -> HabitCard(it.d, date, nav, snack)
+                    is TodoItem -> TodoCard(it, date, nav, snack)
                 }
             }
         }
     }
 }
 
+/** A week of days. Swipe sideways for other weeks; a dot shows how much of each day got done. */
 @Composable
-private fun WeekStrip(date: String, today: String, onPick: (String) -> Unit) {
+private fun WeekPager(date: String, today: String, done: (String) -> Float?, onPick: (String) -> Unit) {
     val b = LocalBloom.current
-    val ws = Dates.weekStart(date)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = { onPick(Dates.add(date, -7)) }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Previous week") }
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceBetween) {
-            for (i in 0 until 7) {
-                val k = Dates.add(ws, i)
-                val sel = k == date
-                Column(
-                    Modifier.clip(RoundedCornerShape(14.dp)).background(if (sel) b.acc else b.bg).clickable { onPick(k) }.padding(horizontal = 8.dp, vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(Dates.dayLetter(k).take(2), fontSize = 12.sp, color = if (sel) b.onAcc else b.muted)
-                    Text(Dates.parse(k).dayOfMonth.toString(), fontWeight = if (k == today) FontWeight.Bold else FontWeight.Normal, color = if (sel) b.onAcc else b.ink)
-                    Box(Modifier.size(4.dp).clip(CircleShape).background(if (k == today && !sel) b.acc else androidx.compose.ui.graphics.Color.Transparent))
+    val base = Dates.weekStart(today)
+    val center = 500
+    fun pageOf(d: String) = center + Dates.between(base, Dates.weekStart(d)) / 7
+    val pager = rememberPagerState(initialPage = pageOf(date)) { 1000 }
+    val current by rememberUpdatedState(date)
+    val pick by rememberUpdatedState(onPick)
+    LaunchedEffect(date) { if (pager.currentPage != pageOf(date)) pager.animateScrollToPage(pageOf(date)) }
+    LaunchedEffect(pager.settledPage) {
+        val ws = Dates.add(base, (pager.settledPage - center) * 7)
+        // Moving to another week keeps the same weekday selected.
+        if (Dates.weekStart(current) != ws) pick(Dates.add(ws, (Dates.dow(current) + 6) % 7))
+    }
+    Column {
+        Text(
+            Dates.parse(date).format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+            style = MaterialTheme.typography.labelLarge, color = b.muted, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+        )
+        HorizontalPager(pager, Modifier.fillMaxWidth()) { page ->
+            val ws = Dates.add(base, (page - center) * 7)
+            Row(Modifier.fillMaxWidth()) {
+                for (i in 0 until 7) {
+                    val k = Dates.add(ws, i)
+                    val sel = k == date
+                    val isToday = k == today
+                    Column(
+                        Modifier.weight(1f).clip(CircleShape).clickable { onPick(k) }.padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(Dates.dayLetter(k).take(1), fontSize = 12.sp, color = if (isToday) b.acc else b.muted, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
+                        Spacer(Modifier.height(4.dp))
+                        Box(
+                            Modifier.size(38.dp).clip(CircleShape)
+                                .background(if (sel) b.acc else Color.Transparent)
+                                .then(if (isToday && !sel) Modifier.border(1.5.dp, b.acc, CircleShape) else Modifier),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                Dates.parse(k).dayOfMonth.toString(), fontSize = 15.sp,
+                                color = if (sel) b.onAcc else if (k > today) b.muted else b.ink,
+                                fontWeight = if (sel || isToday) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        val f = done(k)
+                        Box(Modifier.size(5.dp).clip(CircleShape).background(if (f == null || f == 0f) Color.Transparent else b.acc.copy(alpha = if (f >= 1f) 1f else 0.35f)))
+                    }
                 }
             }
         }
-        IconButton(onClick = { onPick(Dates.add(date, 7)) }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Next week") }
     }
 }
 
+private suspend fun undoable(snack: SnackbarHostState, msg: String, undo: suspend () -> Unit) {
+    snack.currentSnackbarData?.dismiss()
+    if (snack.showSnackbar(msg, "Undo", withDismissAction = true) == SnackbarResult.ActionPerformed) undo()
+}
+
 @Composable
-fun HabitCard(d: HabitDay, date: String, nav: NavHostController) {
-    val repo = bloomApp().repo
+fun HabitCard(d: HabitDay, date: String, nav: NavHostController, snack: SnackbarHostState) {
+    val app = bloomApp()
+    val repo = app.repo
     val scope = rememberCoroutineScope()
     val h = d.habit
     val b = LocalBloom.current
-    BloomCard(Modifier.clickable { nav.navigate("habit/${h.id}") }, padding = 12.dp) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ToneIcon(h.icon, h.color)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(h.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, textDecoration = if (d.done) TextDecoration.LineThrough else null)
-                val sub = listOfNotNull(
-                    Dates.timeRange(h.startTime, h.endTime).ifEmpty { null },
-                    if (h.repeat == "weekly") "${d.weekDone}/${h.timesPerWeek} this week" else null,
-                    if (h.goal > 1) "${d.count}/${h.goal} ${h.unit}".trim() else null,
-                ).joinToString(" · ")
-                if (sub.isNotEmpty()) Muted(sub)
+    SwipeRow(
+        onDelete = {
+            app.scope.launch {
+                val saved = repo.deleteHabitUndoable(h.id) ?: return@launch
+                undoable(snack, "Deleted habit “${h.name}”") { repo.restoreHabit(saved) }
             }
-            if (d.streak > 0) {
-                Icon(Icons.Rounded.LocalFireDepartment, null, tint = b.toneFg("peach"), modifier = Modifier.size(18.dp))
-                Text("${d.streak}", fontSize = 13.sp, color = b.muted)
-            }
-            if (h.goal > 1) {
-                FilledTonalIconButton(onClick = { scope.launch { repo.addCount(h, date, -1) } }, enabled = d.count > 0) { Icon(Icons.Rounded.Remove, "One less") }
-                FilledTonalIconButton(onClick = { scope.launch { repo.addCount(h, date, 1) } }) { Icon(Icons.Rounded.Add, "One more") }
-            } else {
-                CheckCircle(d.done, if (d.done) "Mark not done" else "Mark done") { scope.launch { repo.toggleHabit(h, date, d.count) } }
+        },
+        onDone = { scope.launch { repo.toggleHabit(h, date, d.count) } },
+        doneLabel = if (d.done) "Not done" else "Done",
+    ) {
+        BloomCard(Modifier.clickable { nav.navigate("habit/${h.id}") }, padding = 12.dp) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ToneIcon(h.icon, h.color)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        h.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        textDecoration = if (d.done) TextDecoration.LineThrough else null, color = if (d.done) b.muted else b.ink,
+                    )
+                    val sub = listOfNotNull(
+                        Dates.timeRange(h.startTime, h.endTime).ifEmpty { null },
+                        if (h.repeat == "weekly") "${d.weekDone}/${h.timesPerWeek} this week" else null,
+                        if (h.goal > 1) "${d.count}/${h.goal} ${h.unit}".trim() else null,
+                    ).joinToString(" · ")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (sub.isNotEmpty()) Muted(sub, Modifier.weight(1f, fill = false))
+                        if (d.streak > 0) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(Icons.Rounded.LocalFireDepartment, null, tint = b.toneFg("peach"), modifier = Modifier.size(15.dp))
+                            Text("${d.streak}", fontSize = 12.sp, color = b.muted)
+                        }
+                    }
+                }
+                if (h.goal > 1) {
+                    FilledTonalIconButton(onClick = { scope.launch { repo.addCount(h, date, -1) } }, enabled = d.count > 0, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Remove, "One less", Modifier.size(18.dp)) }
+                    Spacer(Modifier.width(4.dp))
+                    FilledTonalIconButton(onClick = { scope.launch { repo.addCount(h, date, 1) } }, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Add, "One more", Modifier.size(18.dp)) }
+                } else {
+                    CheckCircle(d.done, if (d.done) "Mark not done" else "Mark done") { scope.launch { repo.toggleHabit(h, date, d.count) } }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun TodoCard(it: TodoItem, date: String, nav: NavHostController) {
-    val repo = bloomApp().repo
+private fun TodoCard(it: TodoItem, date: String, nav: NavHostController, snack: SnackbarHostState) {
+    val app = bloomApp()
+    val repo = app.repo
     val scope = rememberCoroutineScope()
     val t = it.t
-    BloomCard(Modifier.combinedClickable(onClick = { nav.navigate("todo/${t.id}/$date") }), padding = 8.dp) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = it.done, onCheckedChange = { scope.launch { repo.toggleTodo(t, date) } })
-            Column(Modifier.weight(1f)) {
-                Text(t.title, textDecoration = if (it.done) TextDecoration.LineThrough else null)
-                val sub = listOfNotNull(
-                    Dates.timeRange(t.startTime, t.endTime).ifEmpty { null },
-                    when (t.repeat) { "daily" -> "Every day"; "days" -> HabitLogic.daysLabel(t.days); else -> null },
-                    "To-do",
-                ).joinToString(" · ")
-                Muted(sub)
+    val b = LocalBloom.current
+    val repeating = TodoLogic.repeats(t)
+    SwipeRow(
+        onDelete = {
+            app.scope.launch {
+                // A repeating to-do is only removed from this day.
+                repo.deleteTodo(t, date, onlyThisDay = true)
+                undoable(snack, if (repeating) "Removed “${t.title}” from this day" else "Deleted “${t.title}”") { repo.restoreTodo(t) }
+            }
+        },
+        onDone = { scope.launch { repo.toggleTodo(t, date) } },
+        doneLabel = if (it.done) "Not done" else "Done",
+        deleteLabel = if (repeating) "Skip this day" else "Delete",
+    ) {
+        BloomCard(Modifier.clickable { nav.navigate("todo/${t.id}/$date") }, padding = 6.dp) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = it.done, onCheckedChange = { scope.launch { repo.toggleTodo(t, date) } })
+                Column(Modifier.weight(1f).padding(end = 10.dp)) {
+                    Text(t.title, maxLines = 2, overflow = TextOverflow.Ellipsis, textDecoration = if (it.done) TextDecoration.LineThrough else null, color = if (it.done) b.muted else b.ink)
+                    val sub = listOfNotNull(
+                        Dates.timeRange(t.startTime, t.endTime).ifEmpty { null },
+                        when (t.repeat) { "daily" -> "Every day"; "days" -> HabitLogic.daysLabel(t.days); else -> null },
+                    ).joinToString(" · ")
+                    if (sub.isNotEmpty()) Muted(sub)
+                }
+                if (t.reminder && t.startTime.isNotEmpty() && !it.done) Icon(Icons.Rounded.Notifications, "Reminder on", tint = b.muted, modifier = Modifier.size(16.dp).padding(end = 2.dp))
+                Spacer(Modifier.width(8.dp))
             }
         }
     }

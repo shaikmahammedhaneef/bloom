@@ -32,6 +32,31 @@ class Repository(val dao: BloomDao, val settings: SettingsStore, private val onC
         onChange()
     }
 
+    /** Deletes a habit and returns what's needed to bring it back (for Undo). */
+    suspend fun deleteHabitUndoable(id: Long): Pair<Habit, List<HabitLog>>? {
+        val h = dao.habit(id) ?: return null
+        val logs = dao.logsFor(id)
+        deleteHabit(id)
+        return h to logs
+    }
+
+    suspend fun restoreHabit(saved: Pair<Habit, List<HabitLog>>) {
+        dao.putHabits(listOf(saved.first))
+        dao.putLogs(saved.second)
+        onChange()
+    }
+
+    /** Puts a to-do back exactly as it was (after an Undo). */
+    suspend fun restoreTodo(t: Todo) {
+        dao.putTodos(listOf(t))
+        onChange()
+    }
+
+    suspend fun restoreMood(m: Mood) {
+        dao.putMoods(listOf(m))
+        onChange()
+    }
+
     suspend fun setCount(h: Habit, date: String, count: Int) {
         val c = count.coerceIn(0, maxOf(1, h.goal) * 3)
         dao.upsertLog(HabitLog(h.id, date, c))
